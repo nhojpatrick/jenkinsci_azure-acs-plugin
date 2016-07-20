@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+  },
+  "variables": {
+    "adminUsername":"[parameters('linuxAdminUsername')]",
+    "agentCount":"[parameters('agentCount')]",
+    "agentsEndpointDNSNamePrefix":"[concat(parameters('dnsNamePrefix'),'agents')]",
+    "agentVMSize":"[parameters('agentVMSize')]",
+    "masterCount":"[parameters('masterCount')]",
+    "mastersEndpointDNSNamePrefix":"[concat(parameters('dnsNamePrefix'),'mgmt')]",
+    "orchestratorType":"[parameters('orchestratorType')]",
+    "sshRSAPublicKey":"[parameters('sshRSAPublicKey')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2016-03-30",
+      "type": "Microsoft.ContainerService/containerServices",
+      "location": "[resourceGroup().location]",
+      "name":"[concat('containerservice-',resourceGroup().name)]",
+      "properties": {
+        "orchestratorProfile": {
+          "orchestratorType": "[variables('orchestratorType')]"
+        },
+        "masterProfile": {
+          "count": "[variables('masterCount')]",
+          "dnsPrefix": "[variables('mastersEndpointDNSNamePrefix')]"
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "agentpools",
+            "count": "[variables('agentCount')]",
+            "vmSize": "[variables('agentVMSize')]",
+            "dnsPrefix": "[variables('agentsEndpointDNSNamePrefix')]"
+          }
+        ],
+        "linuxProfile": {
+          "adminUsername": "[variables('adminUsername')]",
+          "ssh": {
+            "publicKeys": [
+              {
+                "keyData": "[variables('sshRSAPublicKey')]"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "masterFQDN": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.ContainerService/containerServices/', 'containerservice-', resourceGroup().name)).masterProfile.fqdn]"
+    },
+    "sshMaster0": {
+      "type": "string",
+      "value": "[concat('ssh ', variables('adminUsername'), '@', reference(concat('Microsoft.ContainerService/containerServices/', 'containerservice-', resourceGroup().name)).masterProfile.fqdn, ' -A -p 2200')]"
+    },
+    "agentFQDN": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.ContainerService/containerServices/', 'containerservice-', resourceGroup().name)).agentPoolProfiles[0].fqdn]"
+    }
+  }
+}
