@@ -1,4 +1,9 @@
-package org.jenkinsci.plugins.microsoft;
+/**
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See License.txt in the project root for
+ * license information.
+ */
+ package org.jenkinsci.plugins.microsoft;
 
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.microsoft.services.AzureManagementServiceDelegate;
