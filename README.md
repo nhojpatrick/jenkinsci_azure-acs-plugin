@@ -10,7 +10,7 @@ Retrieve and use Client ID and Client Secret to be sent to Azure AD during authe
 
 Refer to
   * [Adding, Updating, and Removing an Application](https://msdn.microsoft.com/en-us/library/azure/dn132599.aspx) 
-  * [Register a client app](https://msdn.microsoft.com/en-us/dn877542.asp)
+  * [Register a client app](https://msdn.microsoft.com/en-us/library/azure/mt403303.aspx)
 
 ## How to install the Azure Container Service Plugin
 1. Download the azure-acs-plugin.hpi file from [here](https://github.com/Microsoft/azure-acs-plugin/blob/master/install/azure-acs-plugin.hpi)
