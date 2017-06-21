@@ -8,46 +8,48 @@ package com.microsoft.jenkins.acs.commands;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import com.microsoft.azure.management.Azure;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import com.microsoft.jenkins.acs.util.NetworkResourceProviderHelper;
 
-import com.microsoft.azure.management.network.NetworkResourceProviderClient;
-import com.microsoft.azure.management.resources.ResourceManagementClient;
-import com.microsoft.windowsazure.exception.ServiceException;
-
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
-	public void execute(IEnablePortCommandData context) {
-		String marathonConfigFile = context.getMarathonConfigFile(); 
-		NetworkResourceProviderClient client = context.getNetworkClient();
-		String dnsNamePrefix = context.getDnsNamePrefix();
-		try {
-			ArrayList<Integer> hostPorts = 
-	    			JsonHelper.getHostPorts(marathonConfigFile);
-	        context.logStatus("Enabling ports");
-	    	for(Integer hPort : hostPorts) {
-				boolean retVal = NetworkResourceProviderHelper.createSecurityGroup(context, client, dnsNamePrefix, hPort);
-				if(retVal) {
-					retVal = NetworkResourceProviderHelper.createLoadBalancerRule(context, client, dnsNamePrefix, hPort);
-					if(!retVal) {
-						throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
-					}
-				}else {
-					throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
-				}
-	    	}
-	    	
-	    	context.setDeploymentState(DeploymentState.Success);
-		} catch (InterruptedException | IOException | ServiceException | AzureCloudException e) {
-			context.logError(e);
-		}
-	}
-	
-	public interface IEnablePortCommandData extends IBaseCommandData {
-		public String getDnsNamePrefix();
-		public String getLocation();
-		public String getMarathonConfigFile();
-		public NetworkResourceProviderClient getNetworkClient();
-		public ResourceManagementClient getResourceClient();
-	}
+    public void execute(IEnablePortCommandData context) {
+        String marathonConfigFile = context.getMarathonConfigFile();
+        Azure azureClient = context.getAzureClient();
+        String resourceGroupName = context.getResourceGroupName();
+        String dnsNamePrefix = context.getDnsNamePrefix();
+        try {
+            ArrayList<Integer> hostPorts =
+                    JsonHelper.getHostPorts(marathonConfigFile);
+            context.logStatus("Enabling ports");
+            for (Integer hPort : hostPorts) {
+                boolean retVal = NetworkResourceProviderHelper.createSecurityGroup(context, azureClient, resourceGroupName, dnsNamePrefix, hPort);
+                if (retVal) {
+                    retVal = NetworkResourceProviderHelper.createLoadBalancerRule(context, azureClient, resourceGroupName, dnsNamePrefix, hPort);
+                    if (!retVal) {
+                        throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
+                    }
+                } else {
+                    throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
+                }
+            }
+
+            context.setDeploymentState(DeploymentState.Success);
+        } catch (InterruptedException | IOException | AzureCloudException e) {
+            context.logError(e);
+        }
+    }
+
+    public interface IEnablePortCommandData extends IBaseCommandData {
+        String getDnsNamePrefix();
+
+        String getLocation();
+
+        String getMarathonConfigFile();
+
+        Azure getAzureClient();
+
+        String getResourceGroupName();
+    }
 }

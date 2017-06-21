@@ -5,20 +5,17 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-import java.io.IOException;
-import java.util.Calendar;
-
-import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
-import com.microsoft.jenkins.acs.util.JsonHelper;
-
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
-import com.microsoft.azure.management.network.NetworkResourceProviderClient;
-import com.microsoft.azure.management.resources.ResourceManagementClient;
+import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
+import com.microsoft.jenkins.acs.util.JsonHelper;
+
+import java.io.IOException;
+import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
     public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {    
@@ -99,9 +96,6 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     	public String getMgmtFQDN();
     	public String getSshKeyFileLocation();
     	public String getSshKeyFilePassword();
-    	public String getLinuxAdminUsername(); 
-
-    	public NetworkResourceProviderClient getNetworkClient();
-    	public ResourceManagementClient getResourceClient();
+    	public String getLinuxAdminUsername();
     }
 }

@@ -5,13 +5,14 @@
  */
 package com.microsoft.jenkins.acs.services;
 
+import com.microsoft.azure.management.Azure;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
 public interface IARMTemplateServiceData {
-	public IAzureConnectionData getAzureConnectionData();
-	public String getResourceGroupName();
-	public String getEmbeddedTemplateName();
-	public void configureTemplate(JsonNode tmp) throws IllegalAccessException, AzureCloudException;
+	Azure getAzureClient();
+	String getResourceGroupName();
+	String getEmbeddedTemplateName();
+	void configureTemplate(JsonNode tmp) throws IllegalAccessException, AzureCloudException;
 }

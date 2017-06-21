@@ -5,37 +5,24 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-
-import com.microsoft.azure.management.resources.ResourceManagementClient;
-import com.microsoft.azure.management.resources.models.ResourceGroup;
-import com.microsoft.azure.management.resources.models.ResourceGroupCreateOrUpdateResult;
-import com.microsoft.windowsazure.exception.ServiceException;
+import com.microsoft.azure.management.Azure;
 
 public class ResourceGroupCommand implements ICommand<ResourceGroupCommand.IResourceGroupCommandData> {
-	public void execute(ResourceGroupCommand.IResourceGroupCommandData context) {
-		try {
-			String resourceGroupName = context.getResourceGroupName();
-			String location = context.getLocation();
-	        context.logStatus(String.format("Creating resource group '%s' if it does not exist", resourceGroupName));
-	        ResourceManagementClient rmc = context.getResourceClient();
-	        ResourceGroupCreateOrUpdateResult rcResult;
-			rcResult = rmc.getResourceGroupsOperations().createOrUpdate(resourceGroupName,  new ResourceGroup(location));
-			if(rcResult.getStatusCode() > 299) {
-	        	context.logError("Error creating resource group. Status code was:" + rcResult.getStatusCode());
-	        	return;
-	        }
+    public void execute(ResourceGroupCommand.IResourceGroupCommandData context) {
+        final String resourceGroupName = context.getResourceGroupName();
+        final String location = context.getLocation();
+        final Azure azureClient = context.getAzureClient();
+        context.logStatus(String.format("Creating resource group '%s' if it does not exist", resourceGroupName));
+        azureClient.resourceGroups().define(resourceGroupName).withRegion(location).create();
 
-			context.setDeploymentState(DeploymentState.Success);
-		} catch (IOException | ServiceException | URISyntaxException e) {
-			context.logError("Error creating resource group:", e);
-		}
-	}
-	
-	public interface IResourceGroupCommandData extends IBaseCommandData {
-		public String getResourceGroupName();
-		public String getLocation();
-		public ResourceManagementClient getResourceClient();
-	}
+        context.setDeploymentState(DeploymentState.Success);
+    }
+
+    public interface IResourceGroupCommandData extends IBaseCommandData {
+        public String getResourceGroupName();
+
+        public String getLocation();
+
+        public Azure getAzureClient();
+    }
 }

@@ -5,6 +5,7 @@
  */
 package com.microsoft.jenkins.acs;
 
+import com.microsoft.azure.util.AzureCredentials;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
@@ -22,22 +23,31 @@ import hudson.tasks.Recorder;
 
 public class ACSDeploymentRecorder extends Recorder {  
 	private ACSDeploymentContext context;
-	private AzureAuthenticationContext authContext;
+	private final String azureCredentialsId;
+
+	private transient AzureCredentials.ServicePrincipal servicePrincipal;
 	
 	@DataBoundConstructor
     public ACSDeploymentRecorder(
     		final ACSDeploymentContext context,
-    		final AzureAuthenticationContext authContext) {
+    		final String azureCredentialsId) {
 		this.context = context;
-		this.authContext = authContext;
+		this.azureCredentialsId = azureCredentialsId;
     }
 
 	public ACSDeploymentContext getContext() {
 		return this.context;
 	}
-	
-	public AzureAuthenticationContext getAuthContext() {
-		return this.authContext;
+
+	public String getAzureCredentialsId() {
+		return azureCredentialsId;
+	}
+
+	public AzureCredentials.ServicePrincipal getServicePrincipal() {
+		if (servicePrincipal == null) {
+			servicePrincipal = AzureCredentials.getServicePrincipal(getAzureCredentialsId());
+		}
+		return servicePrincipal;
 	}
 
 	@Override
@@ -58,7 +68,7 @@ public class ACSDeploymentRecorder extends Recorder {
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener) {
         listener.getLogger().println("Starting Azure Container Service Deployment");
         try {
-			this.context.configure(listener, this.authContext);
+			this.context.configure(listener, getServicePrincipal());
 		} catch (AzureCloudException ex) {
 			listener.error("Error configuring deployment context: " + ex.getMessage());
 			ex.printStackTrace();
