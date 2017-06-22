@@ -5,18 +5,14 @@
  */
 package com.microsoft.jenkins.acs;
 
-import java.util.Calendar;
-import java.util.UUID;
-
-import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
-import com.microsoft.jenkins.acs.util.Constants;
-import org.apache.commons.lang.StringUtils;
-import org.kohsuke.stapler.QueryParameter;
-
 import hudson.model.AbstractProject;
 import hudson.model.Descriptor;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import org.kohsuke.stapler.QueryParameter;
+
+import java.util.Calendar;
+import java.util.UUID;
 
 public class ACSDeploymentContextDescriptor extends Descriptor<ACSDeploymentContext> {
 
@@ -73,14 +69,6 @@ public class ACSDeploymentContextDescriptor extends Descriptor<ACSDeploymentCont
     public FormValidation doCheckSshKeyFileLocation(@QueryParameter String value) {
         if (value == null || value.length() == 0) {
             return FormValidation.error("SSH RSA private file path is required.");
-        }
-
-        return FormValidation.ok();
-    }
-
-    public FormValidation doCheckSshKeyFilePassword(@QueryParameter String value) {
-        if (value == null || value.length() == 0) {
-            return FormValidation.error("SSH RSA private file password is required.");
         }
 
         return FormValidation.ok();

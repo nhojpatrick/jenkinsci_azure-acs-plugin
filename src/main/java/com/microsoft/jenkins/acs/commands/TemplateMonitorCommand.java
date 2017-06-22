@@ -5,7 +5,6 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.resources.Deployments;
 import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
 
@@ -27,9 +26,5 @@ public class TemplateMonitorCommand implements ICommand<TemplateMonitorCommand.I
 
     public interface ITemplateMonitorCommandData extends IBaseCommandData {
         String getDeploymentName();
-
-        String getResourceGroupName();
-
-        Azure getAzureClient();
     }
 }

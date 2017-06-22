@@ -5,6 +5,6 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-public interface ICommand<T extends IBaseCommandData>  {
-	public void execute(T context);
+public interface ICommand<T extends IBaseCommandData> {
+    void execute(T context);
 }

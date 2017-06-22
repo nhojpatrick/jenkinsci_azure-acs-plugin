@@ -5,14 +5,14 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-
 import com.microsoft.azure.management.Azure;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import com.microsoft.jenkins.acs.util.NetworkResourceProviderHelper;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
     public void execute(IEnablePortCommandData context) {
@@ -44,10 +44,6 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
     public interface IEnablePortCommandData extends IBaseCommandData {
         String getDnsNamePrefix();
-
-        Azure getAzureClient();
-
-        String getResourceGroupName();
 
         File getLocalMarathonConfigFile();
     }

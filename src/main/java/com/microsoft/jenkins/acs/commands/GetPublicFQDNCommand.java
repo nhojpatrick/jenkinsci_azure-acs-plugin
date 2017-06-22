@@ -5,7 +5,6 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
-import com.microsoft.azure.management.Azure;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.NetworkResourceProviderHelper;
 
@@ -29,10 +28,6 @@ public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetP
 
     public interface IGetPublicFQDNCommandData extends IBaseCommandData {
         String getDnsNamePrefix();
-
-        Azure getAzureClient();
-
-        String getResourceGroupName();
 
         void setMgmtFQDN(String mgmtFQDN);
     }

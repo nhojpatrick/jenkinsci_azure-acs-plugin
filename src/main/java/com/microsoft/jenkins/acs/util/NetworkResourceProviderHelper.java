@@ -8,7 +8,6 @@ package com.microsoft.jenkins.acs.util;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.network.LoadBalancer;
-import com.microsoft.azure.management.network.LoadBalancerInboundNatRule;
 import com.microsoft.azure.management.network.LoadBalancingRule;
 import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;

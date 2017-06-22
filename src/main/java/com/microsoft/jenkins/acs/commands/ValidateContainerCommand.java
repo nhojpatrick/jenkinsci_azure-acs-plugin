@@ -47,9 +47,5 @@ public class ValidateContainerCommand implements ICommand<ValidateContainerComma
 
     public interface IValidateContainerCommandData extends IBaseCommandData {
         String getDnsNamePrefix();
-
-        Azure getAzureClient();
-
-        String getResourceGroupName();
     }
 }

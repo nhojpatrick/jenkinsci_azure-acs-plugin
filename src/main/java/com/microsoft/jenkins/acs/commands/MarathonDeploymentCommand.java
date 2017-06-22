@@ -59,6 +59,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             context.logStatus(String.format("Deploying file '%s' with appId to marathon.", deployedFilename, appId));
             this.executeCommand(session, "curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps", context);
             context.setDeploymentState(DeploymentState.Success);
+        } catch (InterruptedException ie) {
+            throw new RuntimeException(ie);
         } catch (Exception e) {
             context.logError("Error deploying application to marathon:", e);
         } finally {
@@ -69,7 +71,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     }
 
     private void executeCommand(Session session, String command, IBaseCommandData context)
-            throws IOException, JSchException, AzureCloudException {
+            throws IOException, JSchException, AzureCloudException, InterruptedException {
         ChannelExec execChnl = (ChannelExec) session.openChannel("exec");
         execChnl.setCommand(command);
 
@@ -104,7 +106,9 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                     }
                     try {
                         Thread.sleep(1000);
-                    } catch (Exception ee) {
+                    } catch (InterruptedException ee) {
+                        context.logError("Interrupted while waiting for output of SSH remote command");
+                        throw ee;
                     }
                 }
                 String serverOutput = output.toString("UTF-8");

@@ -5,21 +5,19 @@
  */
 package com.microsoft.jenkins.acs.util;
 
-import java.io.FileNotFoundException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
 public class JsonHelper {
-    public static ArrayList<Integer> getHostPorts(String marathonConfigFile)
-            throws FileNotFoundException, IOException {
+    public static ArrayList<Integer> getHostPorts(String marathonConfigFile) throws IOException {
         ArrayList<Integer> hostPorts = new ArrayList<>();
-        try (InputStream marathonFile = new java.io.FileInputStream(marathonConfigFile)) {
+        try (InputStream marathonFile = new FileInputStream(marathonConfigFile)) {
             final ObjectMapper mapper = new ObjectMapper();
             JsonNode parentNode = mapper.readTree(marathonFile);
             JsonNode node = parentNode.get("container").get("docker").get("portMappings");
@@ -33,9 +31,8 @@ public class JsonHelper {
         return hostPorts;
     }
 
-    public static String getId(String marathonConfigFile)
-            throws FileNotFoundException, IOException {
-        try (InputStream marathonFile = new java.io.FileInputStream(marathonConfigFile)) {
+    public static String getId(String marathonConfigFile) throws IOException {
+        try (InputStream marathonFile = new FileInputStream(marathonConfigFile)) {
             final ObjectMapper mapper = new ObjectMapper();
             JsonNode parentNode = mapper.readTree(marathonFile);
             return parentNode.get("id").textValue();

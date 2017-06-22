@@ -5,17 +5,14 @@
  */
 package com.microsoft.jenkins.acs;
 
-import java.util.Hashtable;
-
-import com.microsoft.jenkins.acs.services.ICommandServiceData;
-import com.microsoft.jenkins.acs.commands.ICommand;
-import com.microsoft.jenkins.acs.commands.TransitionInfo;
-
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
-
-import hudson.model.BuildListener;
+import com.microsoft.jenkins.acs.commands.ICommand;
+import com.microsoft.jenkins.acs.commands.TransitionInfo;
+import com.microsoft.jenkins.acs.services.ICommandServiceData;
 import hudson.model.TaskListener;
+
+import java.util.Hashtable;
 
 public abstract class AbstractBaseContext implements ICommandServiceData {
     private transient TaskListener listener;

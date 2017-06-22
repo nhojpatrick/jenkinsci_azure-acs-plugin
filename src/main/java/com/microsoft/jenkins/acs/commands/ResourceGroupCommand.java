@@ -19,10 +19,6 @@ public class ResourceGroupCommand implements ICommand<ResourceGroupCommand.IReso
     }
 
     public interface IResourceGroupCommandData extends IBaseCommandData {
-        String getResourceGroupName();
-
         String getLocation();
-
-        Azure getAzureClient();
     }
 }

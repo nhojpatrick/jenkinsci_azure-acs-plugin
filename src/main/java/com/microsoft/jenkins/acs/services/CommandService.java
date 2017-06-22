@@ -5,12 +5,12 @@
  */
 package com.microsoft.jenkins.acs.services;
 
-import java.util.Hashtable;
-
+import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
-import com.microsoft.jenkins.acs.commands.DeploymentState;
+
+import java.util.Hashtable;
 
 public class CommandService {
     public static boolean executeCommands(ICommandServiceData commandServiceData) {
