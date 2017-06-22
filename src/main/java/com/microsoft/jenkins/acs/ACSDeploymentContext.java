@@ -24,13 +24,19 @@ import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
 import com.microsoft.jenkins.acs.services.IARMTemplateServiceData;
 import com.microsoft.jenkins.acs.util.DependencyMigration;
 import hudson.Extension;
-import hudson.model.BuildListener;
+import hudson.FilePath;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
+import hudson.model.TaskListener;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Hashtable;
 
 public class ACSDeploymentContext extends AbstractBaseContext
@@ -59,6 +65,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private String sshKeyFileLocation;
     private String location;
     private String orchestratorType;
+
+    private transient File localMarathonConfigFile;
 
     private static final String EMBEDDED_TEMPLATE_FILENAME = "/templateValue.json";
 
@@ -161,6 +169,10 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.mgmtFQDN;
     }
 
+    public File getLocalMarathonConfigFile() {
+        return localMarathonConfigFile;
+    }
+
     @Override
     public IBaseCommandData getDataForCommand(ICommand command) {
         return this;
@@ -168,12 +180,24 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @Override
     public Azure getAzureClient() {
-        return null;
+        return this.azureClient;
     }
 
-    public void configure(BuildListener listener, AzureCredentials.ServicePrincipal servicePrincipal) throws AzureCloudException {
+    public void configure(TaskListener listener, FilePath workspacePath, AzureCredentials.ServicePrincipal servicePrincipal) throws IOException, InterruptedException, AzureCloudException {
         this.servicePrincipal = servicePrincipal;
         this.azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
+
+        this.localMarathonConfigFile = File.createTempFile("marathon-", ".json", new File(System.getProperty("java.io.tmpdir")));
+        FilePath[] files = workspacePath.list(marathonConfigFile);
+        if (files.length < 1) {
+            throw new IllegalArgumentException("Marathon configuration file is not found at " + marathonConfigFile);
+        } else if (files.length > 1) {
+            throw new IllegalArgumentException("Multiple Marathon configuration files were found at " + marathonConfigFile);
+        }
+        byte[] bytes = IOUtils.toByteArray(files[0].toURI());
+        try (OutputStream out = new FileOutputStream(localMarathonConfigFile)) {
+            out.write(bytes);
+        }
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<Class, TransitionInfo>();
         commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));

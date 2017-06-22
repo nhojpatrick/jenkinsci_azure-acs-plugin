@@ -7,9 +7,8 @@
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
         <version>2.3</version>
-        <relativePath/>
     </parent>
-    <groupId>org.jenkins-ci.plugins</groupId>
+
     <artifactId>azure-acs-plugin</artifactId>
     <version>0.1</version>
     <packaging>hpi</packaging>
@@ -26,10 +25,7 @@
              ~ hpi-plugin.version: The HPI Maven Plugin version used by the plugin..
              ~ stapler-plugin.version: The Stapler Maven plugin version required by the plugin.
         -->
-        <jackson.version>2.5.4</jackson.version>
         <azuresdk.version>1.1.0</azuresdk.version>
-        <azuresvcsdk.version>0.9.7</azuresvcsdk.version>
-
         <azure-credentials-plugin.version>1.1</azure-credentials-plugin.version>
     </properties>
 
@@ -78,6 +74,33 @@
         </pluginRepository>
     </pluginRepositories>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.jenkins-ci.main</groupId>
+                <artifactId>jenkins-core</artifactId>
+                <version>${jenkins.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.guava</groupId>
+                        <artifactId>guava</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.jenkins-ci.plugins</groupId>
+                <artifactId>azure-credentials</artifactId>
+                <version>${azure-credentials-plugin.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.microsoft.azure</groupId>
+                        <artifactId>azure</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
@@ -95,50 +118,6 @@
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure</artifactId>
             <version>1.1.0</version>
-        </dependency>
-
-        <!--
-
-        <dependency>
-            <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-client-authentication</artifactId>
-            <version>1.0.3</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-mgmt-network</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-mgmt-resources</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-mgmt-storage</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
-        -->
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>

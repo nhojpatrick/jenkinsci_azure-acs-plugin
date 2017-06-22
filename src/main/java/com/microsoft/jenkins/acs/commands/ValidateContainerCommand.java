@@ -8,6 +8,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 
 public class ValidateContainerCommand implements ICommand<ValidateContainerCommand.IValidateContainerCommandData> {
     public void execute(ValidateContainerCommand.IValidateContainerCommandData context) {
@@ -21,8 +22,10 @@ public class ValidateContainerCommand implements ICommand<ValidateContainerComma
             PagedList<ContainerService> containerServices = azureClient.containerServices().listByResourceGroup(resourceGroupName);
             boolean found = false;
             for (ContainerService containerService : containerServices) {
+                if (containerService.orchestratorType() != ContainerServiceOchestratorTypes.DCOS) {
+                    continue;
+                }
                 String name = containerService.name();
-                // TODO: check logic here
                 if (name.equals("containerservice-" + dnsNamePrefix)) {
                     context.logStatus(
                             String.format("Azure Container Service with name 'containerservice-%s' found.", dnsNamePrefix));
@@ -44,8 +47,6 @@ public class ValidateContainerCommand implements ICommand<ValidateContainerComma
 
     public interface IValidateContainerCommandData extends IBaseCommandData {
         String getDnsNamePrefix();
-
-        String getLocation();
 
         Azure getAzureClient();
 

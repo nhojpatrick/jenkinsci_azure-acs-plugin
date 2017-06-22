@@ -14,6 +14,7 @@ import com.microsoft.azure.management.appservice.ProvisioningState;
 import com.microsoft.azure.management.resources.DeploymentMode;
 import com.microsoft.azure.management.resources.DeploymentOperation;
 import com.microsoft.azure.management.resources.Deployments;
+import com.microsoft.azure.management.resources.TargetResource;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
@@ -44,7 +45,6 @@ public class AzureManagementServiceDelegate {
                 }
 
                 Azure azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
-                // TODO: Do we need to check the returned result here?
                 azureClient.storageAccounts().checkNameAvailability("CI_SYSTEM");
                 return Constants.OP_SUCCESS;
             }
@@ -124,12 +124,6 @@ public class AzureManagementServiceDelegate {
             IBaseCommandData baseCommandData) {
         int completed = 0;
         do {
-            try {
-                Thread.sleep(30 * 1000);
-            } catch (InterruptedException ex) {
-                // ignore
-            }
-
             PagedList<DeploymentOperation> ops;
             try {
                 ops = deployments.getByResourceGroup(resourceGroupName, deploymentName).deploymentOperations().list();
@@ -141,24 +135,31 @@ public class AzureManagementServiceDelegate {
 
             completed = ops.size();
             for (DeploymentOperation op : ops) {
-                final String resource = op.targetResource().resourceName();
-                final String type = op.targetResource().resourceType();
-                final String state = op.provisioningState();
+                TargetResource targetResource = op.targetResource();
+                if (targetResource == null) {
+                    // a deployment operation with null target resource may be returned, skip it
+                    --completed;
+                    continue;
+                }
+                final String resource = targetResource.resourceName();
+                final String type = targetResource.resourceType();
+                final ProvisioningState state = ProvisioningState.fromString(op.provisioningState());
 
-                if (ProvisioningState.CANCELED.equals(state)
-                        || ProvisioningState.FAILED.equals(state)
-                        || ProvisioningState.DELETING.equals(state)) {
-                    LOGGER.log(Level.INFO, "Failed({0}): {1}:{2}", new Object[]{state, type, resource});
-                    baseCommandData.logError(String.format("Failed(%s): %s:%s", state, type, resource));
-                    return false;
-                } else if (ProvisioningState.SUCCEEDED.equals(state)) {
-                    baseCommandData.logStatus(
-                            String.format("Succeeded(%s): %s:%s", state, type, resource));
-                    completed--;
-                } else {
-                    LOGGER.log(Level.INFO, "To Be Completed({0}): {1}:{2}", new Object[]{state, type, resource});
-                    baseCommandData.logStatus(
-                            String.format("To Be Completed(%s): %s:%s", state, type, resource));
+                switch (state) {
+                    case CANCELED:
+                    case FAILED:
+                    case DELETING:
+                        LOGGER.log(Level.INFO, "Failed({0}): {1}:{2}", new Object[]{state, type, resource});
+                        baseCommandData.logError(String.format("Failed(%s): %s:%s", state, type, resource));
+                        return false;
+                    case SUCCEEDED:
+                        baseCommandData.logStatus(
+                                String.format("Succeeded(%s): %s:%s", state, type, resource));
+                        completed--;
+                    default:
+                        LOGGER.log(Level.INFO, "To Be Completed({0}): {1}:{2}", new Object[]{state, type, resource});
+                        baseCommandData.logStatus(
+                                String.format("To Be Completed(%s): %s:%s", state, type, resource));
                 }
             }
         } while (completed != 0);

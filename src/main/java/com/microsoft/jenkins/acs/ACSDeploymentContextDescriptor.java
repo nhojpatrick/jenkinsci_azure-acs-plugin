@@ -177,20 +177,6 @@ public class ACSDeploymentContextDescriptor extends Descriptor<ACSDeploymentCont
         return model;
     }
 
-    public FormValidation doVerifyConfiguration(@QueryParameter String azureCredentialsId) {
-        if (StringUtils.isBlank(azureCredentialsId)) {
-            return FormValidation.error("Error: no Azure credentials are selected");
-        }
-
-        String response = AzureManagementServiceDelegate.verifyCredentials(azureCredentialsId);
-
-        if (Constants.OP_SUCCESS.equalsIgnoreCase(response)) {
-            return FormValidation.ok("Success");
-        } else {
-            return FormValidation.error(response);
-        }
-    }
-
     public boolean isApplicable(Class<? extends AbstractProject> aClass) {
         // Indicates that this builder can be used with all kinds of project types
         return true;
