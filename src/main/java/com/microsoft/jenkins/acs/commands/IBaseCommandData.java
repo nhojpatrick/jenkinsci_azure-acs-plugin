@@ -23,4 +23,6 @@ public interface IBaseCommandData {
     Azure getAzureClient();
 
     String getResourceGroupName();
+
+    String getContainerServiceName();
 }

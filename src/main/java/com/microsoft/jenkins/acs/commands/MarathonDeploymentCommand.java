@@ -114,8 +114,6 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     }
 
     public interface IMarathonDeploymentCommandData extends IBaseCommandData {
-        String getDnsNamePrefix();
-
         String getMgmtFQDN();
 
         String getSshKeyFileLocation();

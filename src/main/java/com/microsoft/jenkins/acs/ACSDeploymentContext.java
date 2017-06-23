@@ -5,8 +5,14 @@
  */
 package com.microsoft.jenkins.acs;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
+import com.microsoft.azure.management.compute.ContainerService;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
@@ -14,89 +20,67 @@ import com.microsoft.jenkins.acs.commands.GetPublicFQDNCommand;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
-import com.microsoft.jenkins.acs.commands.ResourceGroupCommand;
-import com.microsoft.jenkins.acs.commands.TemplateDeployCommand;
-import com.microsoft.jenkins.acs.commands.TemplateMonitorCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
-import com.microsoft.jenkins.acs.commands.ValidateContainerCommand;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
-import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
-import com.microsoft.jenkins.acs.services.IARMTemplateServiceData;
+import com.microsoft.jenkins.acs.util.AzureHelper;
+import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DependencyMigration;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
+import hudson.model.Item;
 import hudson.model.TaskListener;
+import hudson.security.ACL;
+import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.Hashtable;
+import java.util.List;
 
 public class ACSDeploymentContext extends AbstractBaseContext
-        implements ResourceGroupCommand.IResourceGroupCommandData,
-        ValidateContainerCommand.IValidateContainerCommandData,
-        GetPublicFQDNCommand.IGetPublicFQDNCommandData,
+        implements GetPublicFQDNCommand.IGetPublicFQDNCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
-        TemplateDeployCommand.ITemplateDeployCommandData,
-        TemplateMonitorCommand.ITemplateMonitorCommandData,
-        IARMTemplateServiceData,
         Describable<ACSDeploymentContext> {
 
-    private transient AzureCredentials.ServicePrincipal servicePrincipal;
-    private Azure azureClient;
-    private String deploymentName;
-    private String mgmtFQDN;
-    private String dnsNamePrefix;
-    private String agentCount;
-    private String agentVMSize;
-    private String linuxAdminUsername;
-    private String masterCount;
-    private String sshRSAPublicKey;
+    private String azureCredentialsId;
+    private String resourceGroupName;
+    private String containerServiceName;
     private String marathonConfigFile;
     private String sshKeyFilePassword;
     private String sshKeyFileLocation;
-    private String location;
-    private String orchestratorType;
 
+    private transient Azure azureClient;
+    private transient String mgmtFQDN;
+    private transient String linuxAdminUsername;
     private transient File localMarathonConfigFile;
-
-    private static final String EMBEDDED_TEMPLATE_FILENAME = "/templateValue.json";
-
-    public ACSDeploymentContext() {
-        this.location = "West US";
-    }
 
     @DataBoundConstructor
     public ACSDeploymentContext(
-            final String dnsNamePrefix,
-            final String agentCount,
-            final String agentVMSize,
-            final String linuxAdminUsername,
-            final String masterCount,
-            final String sshRSAPublicKey,
+            final String azureCredentialsId,
+            final String resourceGroupName,
+            final String containerServiceName,
             final String marathonConfigFile,
             final String sshKeyFilePassword,
-            final String sshKeyFileLocation,
-            final String location) {
-        this.dnsNamePrefix = dnsNamePrefix;
-        this.agentCount = agentCount;
-        this.agentVMSize = agentVMSize;
-        this.linuxAdminUsername = linuxAdminUsername;
-        this.orchestratorType = "DCOS";
-        this.masterCount = masterCount;
-        this.sshRSAPublicKey = sshRSAPublicKey;
+            final String sshKeyFileLocation) {
+        this.azureCredentialsId = azureCredentialsId;
+        this.resourceGroupName = resourceGroupName;
+        this.containerServiceName = containerServiceName;
         this.marathonConfigFile = marathonConfigFile;
         this.sshKeyFilePassword = sshKeyFilePassword;
         this.sshKeyFileLocation = sshKeyFileLocation;
-        this.location = location;
     }
 
     @Override
@@ -104,34 +88,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
     }
 
-    @Override
-    public String getDnsNamePrefix() {
-        return this.dnsNamePrefix;
-    }
-
-    public String getAgentCount() {
-        return this.agentCount;
-    }
-
-    public String getAgentVMSize() {
-        return this.agentVMSize;
-    }
-
-    @Override
-    public String getLinuxAdminUsername() {
-        return this.linuxAdminUsername;
-    }
-
-    public String getOrchestratorType() {
-        return this.orchestratorType;
-    }
-
-    public String getMasterCount() {
-        return this.masterCount;
-    }
-
-    public String getSshRSAPublicKey() {
-        return this.sshRSAPublicKey;
+    public String getAzureCredentialsId() {
+        return azureCredentialsId;
     }
 
     @Override
@@ -150,28 +108,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public String getLocation() {
-        return this.location;
-    }
-
-    @Override
-    public void setDeploymentName(String deploymentName) {
-        this.deploymentName = deploymentName;
-    }
-
-    @Override
     public void setMgmtFQDN(String mgmtFQDN) {
         this.mgmtFQDN = mgmtFQDN;
     }
 
     @Override
     public String getResourceGroupName() {
-        return this.dnsNamePrefix;
-    }
-
-    @Override
-    public String getDeploymentName() {
-        return this.deploymentName;
+        return this.resourceGroupName;
     }
 
     @Override
@@ -185,23 +128,33 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
+    public String getLinuxAdminUsername() {
+        return linuxAdminUsername;
+    }
+
+    @Override
+    public void setLinuxRootUsername(String linuxAdminUsername) {
+        this.linuxAdminUsername = linuxAdminUsername;
+    }
+
+    @Override
+    public String getContainerServiceName() {
+        return containerServiceName;
+    }
+
+    @Override
     public Azure getAzureClient() {
         return this.azureClient;
     }
 
-    public void configure(TaskListener listener, FilePath workspacePath, AzureCredentials.ServicePrincipal servicePrincipal) throws IOException, InterruptedException, AzureCloudException {
-        this.servicePrincipal = servicePrincipal;
-        this.azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
+    public void configure(TaskListener listener, FilePath workspacePath) throws IOException, InterruptedException, AzureCloudException {
+        this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
-        commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));
-        commands.put(ValidateContainerCommand.class, new TransitionInfo(new ValidateContainerCommand(), GetPublicFQDNCommand.class, TemplateDeployCommand.class));
-        commands.put(TemplateDeployCommand.class, new TransitionInfo(new TemplateDeployCommand(), TemplateMonitorCommand.class, null));
-        commands.put(TemplateMonitorCommand.class, new TransitionInfo(new TemplateMonitorCommand(), GetPublicFQDNCommand.class, null));
         commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), MarathonDeploymentCommand.class, null));
         commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-        super.configure(listener, commands, ResourceGroupCommand.class);
+        super.configure(listener, commands, GetPublicFQDNCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 
@@ -214,35 +167,142 @@ public class ACSDeploymentContext extends AbstractBaseContext
         }
     }
 
-    @Override
-    public String getEmbeddedTemplateName() {
-        return EMBEDDED_TEMPLATE_FILENAME;
-    }
-
-    @Override
-    public void configureTemplate(JsonNode tmp) throws IllegalAccessException, AzureCloudException {
-        if (StringUtils.isBlank(this.getDnsNamePrefix())) {
-            throw new AzureCloudException(
-                    String.format("Invalid DNS name prefix '%s'", this.dnsNamePrefix));
+    @Extension
+    public static final class DescriptorImpl extends Descriptor<ACSDeploymentContext> {
+        public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
+            List<AzureCredentials> credentials;
+            if (owner == null) {
+                credentials = CredentialsProvider.lookupCredentials(
+                        AzureCredentials.class,
+                        Jenkins.getInstance(),
+                        ACL.SYSTEM,
+                        Collections.<DomainRequirement>emptyList()
+                );
+            } else {
+                credentials = CredentialsProvider.lookupCredentials(
+                        AzureCredentials.class,
+                        owner,
+                        ACL.SYSTEM,
+                        Collections.<DomainRequirement>emptyList()
+                );
+            }
+            StandardListBoxModel model = new StandardListBoxModel();
+            model.add("--- Select Azure Credentials ---", Constants.INVALID_OPTION);
+            model.withAll(credentials);
+            return model;
         }
 
-        AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.dnsNamePrefix, "dnsNamePrefix",
-                String.format("Invalid DNS name prefix '%s'", this.getDnsNamePrefix()),
-                tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("int", this.agentCount, "agentCount", null, tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.agentVMSize, "agentVMSize", null, tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.linuxAdminUsername, "linuxAdminUsername", null, tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.orchestratorType, "orchestratorType", null, tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("int", this.masterCount, "masterCount", null, tmp);
-        AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.sshRSAPublicKey, "sshRSAPublicKey", null, tmp);
-    }
+        public FormValidation doVerifyConfiguration(@QueryParameter String azureCredentialsId) {
+            if (StringUtils.isBlank(azureCredentialsId)) {
+                return FormValidation.error("Error: no Azure credentials are selected");
+            }
+            try {
+                AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
+                if (StringUtils.isBlank(servicePrincipal.getClientId())) {
+                    return FormValidation.error("Cannot get the service principal from the selected Azure credentials ID");
+                }
 
-    @Override
-    public IARMTemplateServiceData getArmTemplateServiceData() {
-        return this;
-    }
+                Azure azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
+                azureClient.storageAccounts().checkNameAvailability("CI_SYSTEM");
+                return FormValidation.ok(Constants.OP_SUCCESS);
+            } catch (Exception e) {
+                return FormValidation.error("Error validating configuration: " + e.getMessage());
+            }
+        }
 
-    @Extension
-    public static final class DescriptorImpl extends ACSDeploymentContextDescriptor {
+        public ListBoxModel doFillResourceGroupNameItems(@QueryParameter String azureCredentialsId) {
+            ListBoxModel model = new ListBoxModel();
+
+            if (StringUtils.isBlank(azureCredentialsId)
+                    || Constants.INVALID_OPTION.equals(azureCredentialsId)) {
+                model.add("--- select credentials first ---", Constants.INVALID_OPTION);
+                return model;
+            }
+
+            try {
+                AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
+                if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
+                    model.add("--- select credentials first ---", Constants.INVALID_OPTION);
+                    return model;
+                }
+
+                Azure azureClient = AzureHelper.buildClientFromServicePrincipal(servicePrincipal);
+                for (ResourceGroup resourceGroup : azureClient.resourceGroups().list()) {
+                    model.add(resourceGroup.name());
+                }
+            } catch (Exception ex) {
+                model.add(String.format("*** Failed to load resource groups: %s ***", ex.getMessage()), Constants.INVALID_OPTION);
+            }
+
+            if (model.isEmpty()) {
+                model.add("--- No resource groups found ---", Constants.INVALID_OPTION);
+            }
+
+            return model;
+        }
+
+        public ListBoxModel doFillContainerServiceNameItems(
+                @QueryParameter final String azureCredentialsId,
+                @QueryParameter final String resourceGroupName) {
+            ListBoxModel model = new ListBoxModel();
+
+            if (StringUtils.isBlank(azureCredentialsId)
+                    || Constants.INVALID_OPTION.equals(azureCredentialsId)
+                    || StringUtils.isBlank(resourceGroupName)
+                    || Constants.INVALID_OPTION.equals(resourceGroupName)) {
+                model.add("--- select credentials & resource group first ---", Constants.INVALID_OPTION);
+                return model;
+            }
+
+            try {
+                AzureCredentials.ServicePrincipal servicePrincipal =
+                        AzureCredentials.getServicePrincipal(azureCredentialsId);
+                if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
+                    model.add("--- select credentials & resource group first ---", Constants.INVALID_OPTION);
+                    return model;
+                }
+
+                Azure azureClient = AzureHelper.buildClientFromServicePrincipal(servicePrincipal);
+
+                PagedList<ContainerService> containerServices =
+                        azureClient.containerServices().listByResourceGroup(resourceGroupName);
+                for (ContainerService containerService : containerServices) {
+                    if (containerService.orchestratorType() == ContainerServiceOchestratorTypes.DCOS) {
+                        model.add(containerService.name());
+                    }
+                }
+            } catch (Exception ex) {
+                model.add(String.format("*** Failed to load resource groups: %s ***", ex.getMessage()), Constants.INVALID_OPTION);
+            }
+
+            if (model.isEmpty()) {
+                model.add("--- No resource groups found ---", Constants.INVALID_OPTION);
+            }
+
+            return model;
+        }
+
+        public FormValidation doCheckMarathonConfigFile(@QueryParameter String value) {
+            if (value == null || value.length() == 0) {
+                return FormValidation.error("Marathon config file path is required.");
+            }
+
+            return FormValidation.ok();
+        }
+
+        public FormValidation doCheckSshKeyFileLocation(@QueryParameter String value) {
+            if (value == null || value.length() == 0) {
+                return FormValidation.error("SSH RSA private file path is required.");
+            }
+
+            return FormValidation.ok();
+        }
+
+        /**
+         * This human readable name is used in the configuration screen.
+         */
+        public String getDisplayName() {
+            return null;
+        }
     }
 }

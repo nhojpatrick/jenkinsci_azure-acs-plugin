@@ -16,7 +16,7 @@ import java.util.Hashtable;
 
 public abstract class AbstractBaseContext implements ICommandServiceData {
     private transient TaskListener listener;
-    private DeploymentState deployState = DeploymentState.Unknown;
+    private transient DeploymentState deployState = DeploymentState.Unknown;
     private transient Hashtable<Class, TransitionInfo> commands;
     private transient Class startCommandClass;
 
