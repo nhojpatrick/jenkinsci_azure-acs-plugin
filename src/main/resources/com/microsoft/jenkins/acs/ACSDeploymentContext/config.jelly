@@ -15,18 +15,13 @@
         <f:select/>
     </f:entry>
 
-    <f:section title="${%Marathon_Profile_Configuration}">
-        <f:entry title="${%Marathon_Config_File_Location}" field="marathonConfigFile"
-                 help="/plugin/azure-acs-plugin/help-marathonConfigFile.html">
-            <f:textbox/>
-        </f:entry>
-        <f:entry title="${%SSH_RSA_Private_File_Location}" field="sshKeyFileLocation"
-                 help="/plugin/azure-acs-plugin/help-sshKeyFileLocation.html">
-            <f:textbox/>
-        </f:entry>
-        <f:entry title="${%SSH_RSA_Private_File_Password}" field="sshKeyFilePassword"
-                 help="/plugin/azure-acs-plugin/help-sshKeyFilePassword.html">
-            <f:password/>
-        </f:entry>
-    </f:section>
+    <f:entry title="${%sshCredentialsId_title}" field="sshCredentialsId"
+             help="/plugin/azure-kubernetes/ACSKubernetesPublisher/help-sshCredentialsId.html">
+        <c:select expressionAllowed="false"/>
+    </f:entry>
+
+    <f:entry title="${%Marathon_Config_File_Location}" field="marathonConfigFile"
+             help="/plugin/azure-acs-plugin/help-marathonConfigFile.html">
+        <f:textbox/>
+    </f:entry>
 </j:jelly>

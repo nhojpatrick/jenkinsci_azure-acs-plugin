@@ -5,6 +5,9 @@
  */
 package com.microsoft.jenkins.acs;
 
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey;
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
@@ -58,29 +61,27 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private String azureCredentialsId;
     private String resourceGroupName;
     private String containerServiceName;
+    private String sshCredentialsId;
     private String marathonConfigFile;
-    private String sshKeyFilePassword;
-    private String sshKeyFileLocation;
 
     private transient Azure azureClient;
     private transient String mgmtFQDN;
     private transient String linuxAdminUsername;
     private transient File localMarathonConfigFile;
+    private transient SSHUserPrivateKey sshCredentials;
 
     @DataBoundConstructor
     public ACSDeploymentContext(
             final String azureCredentialsId,
             final String resourceGroupName,
             final String containerServiceName,
-            final String marathonConfigFile,
-            final String sshKeyFilePassword,
-            final String sshKeyFileLocation) {
+            final String sshCredentialsId,
+            final String marathonConfigFile) {
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = resourceGroupName;
         this.containerServiceName = containerServiceName;
+        this.sshCredentialsId = sshCredentialsId;
         this.marathonConfigFile = marathonConfigFile;
-        this.sshKeyFilePassword = sshKeyFilePassword;
-        this.sshKeyFileLocation = sshKeyFileLocation;
     }
 
     @Override
@@ -97,14 +98,16 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.marathonConfigFile;
     }
 
-    @Override
-    public String getSshKeyFileLocation() {
-        return this.sshKeyFileLocation;
+    public String getSshCredentialsId() {
+        return sshCredentialsId;
     }
 
     @Override
-    public String getSshKeyFilePassword() {
-        return this.sshKeyFilePassword;
+    public SSHUserPrivateKey getSshCredentials() {
+        if (sshCredentials == null) {
+            sshCredentials = getSshCredentials(getSshCredentialsId());
+        }
+        return sshCredentials;
     }
 
     @Override
@@ -165,6 +168,17 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 logStatus("Cannot delete temporary Marathon configuration file: " + this.localMarathonConfigFile.getAbsolutePath());
             }
         }
+    }
+
+    private static SSHUserPrivateKey getSshCredentials(final String id) {
+        SSHUserPrivateKey creds = CredentialsMatchers.firstOrNull(
+                CredentialsProvider.lookupCredentials(
+                        BasicSSHUserPrivateKey.class,
+                        Jenkins.getInstance(),
+                        ACL.SYSTEM,
+                        Collections.<DomainRequirement>emptyList()),
+                CredentialsMatchers.withId(id));
+        return creds;
     }
 
     @Extension
@@ -290,12 +304,23 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return FormValidation.ok();
         }
 
-        public FormValidation doCheckSshKeyFileLocation(@QueryParameter String value) {
-            if (value == null || value.length() == 0) {
-                return FormValidation.error("SSH RSA private file path is required.");
+        public ListBoxModel doFillSshCredentialsIdItems(@AncestorInPath final Item owner) {
+            List<SSHUserPrivateKey> credentials;
+            if (owner == null) {
+                credentials = CredentialsProvider.lookupCredentials(
+                        SSHUserPrivateKey.class,
+                        Jenkins.getInstance(),
+                        ACL.SYSTEM,
+                        Collections.<DomainRequirement>emptyList());
+            } else {
+                credentials = CredentialsProvider.lookupCredentials(
+                        SSHUserPrivateKey.class,
+                        owner,
+                        ACL.SYSTEM,
+                        Collections.<DomainRequirement>emptyList());
             }
-
-            return FormValidation.ok();
+            ListBoxModel m = new StandardListBoxModel().withAll(credentials);
+            return m;
         }
 
         /**

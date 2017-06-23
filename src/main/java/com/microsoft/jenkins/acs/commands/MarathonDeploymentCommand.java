@@ -5,6 +5,7 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;
@@ -13,6 +14,7 @@ import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
+import hudson.util.Secret;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -21,11 +23,12 @@ import java.io.InputStream;
 import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
+    private static final String CHARSET = "UTF-8";
+
     @Override
     public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {
         String host = context.getMgmtFQDN();
-        String sshFile = context.getSshKeyFileLocation();
-        String filePassword = context.getSshKeyFilePassword();
+        SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         String linuxAdminUsername = context.getLinuxAdminUsername();
         String marathonConfigFile = context.getMarathonConfigFile();
 
@@ -33,14 +36,32 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         try {
             JSch jsch = new JSch();
 
+            final Secret userPassphrase = sshCredentials.getPassphrase();
+            String passphrase = null;
+            if (userPassphrase != null) {
+                passphrase = userPassphrase.getPlainText();
+            }
+            byte[] passphraseBytes = null;
+            if (passphrase != null) {
+                passphraseBytes = passphrase.getBytes(CHARSET);
+            }
+            int seq = 0;
+            for (String privateKey : sshCredentials.getPrivateKeys()) {
+                String name = linuxAdminUsername;
+                if (seq++ != 0) {
+                    name += "-" + seq;
+                }
+                jsch.addIdentity(name, privateKey.getBytes(CHARSET), null, passphraseBytes);
+            }
+
+            session = jsch.getSession(linuxAdminUsername, host, 2200);
+
             java.util.Properties config = new java.util.Properties();
             config.put("StrictHostKeyChecking", "no");
-            jsch.addIdentity(sshFile, filePassword);
-            session = jsch.getSession(linuxAdminUsername, host, 2200);
             session.setConfig(config);
             session.connect();
 
-            ChannelSftp channel = null;
+            ChannelSftp channel;
             channel = (ChannelSftp) session.openChannel("sftp");
             channel.connect();
             String appId = JsonHelper.getId(marathonConfigFile);
@@ -57,7 +78,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             //ignore if app does not exist
             context.logStatus(String.format("Deleting application with appId: '%s' if it exists", appId));
             this.executeCommand(session, "curl -X DELETE http://localhost/marathon/v2/apps/" + appId, context);
-            context.logStatus(String.format("Deploying file '%s' with appId to marathon.", deployedFilename, appId));
+            context.logStatus(String.format("Deploying file '%s' with appId %s to marathon.", deployedFilename, appId));
             this.executeCommand(session, "curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps", context);
             context.setDeploymentState(DeploymentState.Success);
         } catch (InterruptedException ie) {
@@ -106,7 +127,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                     break;
                 }
             }
-            String serverOutput = output.toString("UTF-8");
+            String serverOutput = output.toString(CHARSET);
             context.logStatus("<== " + serverOutput);
         } finally {
             execChnl.disconnect();
@@ -116,12 +137,10 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     public interface IMarathonDeploymentCommandData extends IBaseCommandData {
         String getMgmtFQDN();
 
-        String getSshKeyFileLocation();
-
-        String getSshKeyFilePassword();
-
         String getLinuxAdminUsername();
 
         String getMarathonConfigFile();
+
+        SSHUserPrivateKey getSshCredentials();
     }
 }
