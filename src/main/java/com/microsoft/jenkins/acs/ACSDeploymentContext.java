@@ -99,12 +99,12 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.location = location;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Descriptor<ACSDeploymentContext> getDescriptor() {
-        return Jenkins.getInstance().getDescriptor(getClass());
+        return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
     }
 
+    @Override
     public String getDnsNamePrefix() {
         return this.dnsNamePrefix;
     }
@@ -117,6 +117,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.agentVMSize;
     }
 
+    @Override
     public String getLinuxAdminUsername() {
         return this.linuxAdminUsername;
     }
@@ -137,38 +138,47 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.marathonConfigFile;
     }
 
+    @Override
     public String getSshKeyFileLocation() {
         return this.sshKeyFileLocation;
     }
 
+    @Override
     public String getSshKeyFilePassword() {
         return this.sshKeyFilePassword;
     }
 
+    @Override
     public String getLocation() {
         return this.location;
     }
 
+    @Override
     public void setDeploymentName(String deploymentName) {
         this.deploymentName = deploymentName;
     }
 
+    @Override
     public void setMgmtFQDN(String mgmtFQDN) {
         this.mgmtFQDN = mgmtFQDN;
     }
 
+    @Override
     public String getResourceGroupName() {
         return this.dnsNamePrefix;
     }
 
+    @Override
     public String getDeploymentName() {
         return this.deploymentName;
     }
 
+    @Override
     public String getMgmtFQDN() {
         return this.mgmtFQDN;
     }
 
+    @Override
     public File getLocalMarathonConfigFile() {
         return localMarathonConfigFile;
     }
@@ -194,12 +204,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
         } else if (files.length > 1) {
             throw new IllegalArgumentException("Multiple Marathon configuration files were found at " + marathonConfigFile);
         }
-        byte[] bytes = IOUtils.toByteArray(files[0].toURI());
         try (OutputStream out = new FileOutputStream(localMarathonConfigFile)) {
-            out.write(bytes);
+            IOUtils.copy(files[0].toURI().toURL().openStream(), out);
         }
 
-        Hashtable<Class, TransitionInfo> commands = new Hashtable<Class, TransitionInfo>();
+        Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
         commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));
         commands.put(ValidateContainerCommand.class, new TransitionInfo(new ValidateContainerCommand(), GetPublicFQDNCommand.class, TemplateDeployCommand.class));
         commands.put(TemplateDeployCommand.class, new TransitionInfo(new TemplateDeployCommand(), TemplateMonitorCommand.class, null));
@@ -209,6 +218,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
         super.configure(listener, commands, ResourceGroupCommand.class);
         this.setDeploymentState(DeploymentState.Running);
+    }
+
+    public void cleanupConfigFile() {
+        if (this.localMarathonConfigFile != null) {
+            boolean ret = this.localMarathonConfigFile.delete();
+            if (!ret) {
+                logStatus("Cannot delete temporary Marathon configuration file: " + this.localMarathonConfigFile.getAbsolutePath());
+            }
+        }
     }
 
     @Override

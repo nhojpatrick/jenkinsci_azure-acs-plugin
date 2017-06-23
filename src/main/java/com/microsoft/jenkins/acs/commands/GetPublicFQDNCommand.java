@@ -11,6 +11,7 @@ import com.microsoft.jenkins.acs.util.NetworkResourceProviderHelper;
 import java.io.IOException;
 
 public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetPublicFQDNCommandData> {
+    @Override
     public void execute(GetPublicFQDNCommand.IGetPublicFQDNCommandData context) {
         try {
             context.logStatus("Getting management public FQDN.");

@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
+    @Override
     public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {
         String host = context.getMgmtFQDN();
         String sshFile = context.getSshKeyFileLocation();
@@ -75,49 +76,40 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         ChannelExec execChnl = (ChannelExec) session.openChannel("exec");
         execChnl.setCommand(command);
 
-        context.logStatus("==> Execute: " + command);
+        context.logStatus("==> exec: " + command);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[1024];
 
+        execChnl.connect();
+        InputStream in = execChnl.getInputStream();
+
         try {
-            execChnl.connect();
-            InputStream in = execChnl.getInputStream();
-
-            try {
-                while (true) {
-                    while (in.available() > 0) {
-                        int len = in.read(buffer, 0, buffer.length);
-                        if (len < 0) {
-                            break;
-                        }
-                        output.write(buffer, 0, len);
-                    }
-
-                    if (execChnl.isClosed()) {
-                        if (in.available() > 0) {
-                            continue;
-                        }
-                        if (execChnl.getExitStatus() < 0) {
-                            throw new AzureCloudException("Error building or running docker image. Process exected with status: " +
-                                    execChnl.getExitStatus());
-                        }
-                        System.out.println("exit-status: " + execChnl.getExitStatus());
+            while (true) {
+                do {
+                    // blocks on IO
+                    int len = in.read(buffer, 0, buffer.length);
+                    if (len < 0) {
                         break;
                     }
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ee) {
-                        context.logError("Interrupted while waiting for output of SSH remote command");
-                        throw ee;
+                    output.write(buffer, 0, len);
+                } while (in.available() > 0);
+
+                if (execChnl.isClosed()) {
+                    if (in.available() > 0) {
+                        continue;
                     }
+                    if (execChnl.getExitStatus() < 0) {
+                        throw new AzureCloudException("Error building or running docker image. Process exected with status: " +
+                                execChnl.getExitStatus());
+                    }
+                    System.out.println("exit-status: " + execChnl.getExitStatus());
+                    break;
                 }
-                String serverOutput = output.toString("UTF-8");
-                context.logStatus("<== " + serverOutput);
-            } finally {
-                execChnl.disconnect();
             }
-        } catch (AzureCloudException ex) {
-            throw ex;
+            String serverOutput = output.toString("UTF-8");
+            context.logStatus("<== " + serverOutput);
+        } finally {
+            execChnl.disconnect();
         }
     }
 

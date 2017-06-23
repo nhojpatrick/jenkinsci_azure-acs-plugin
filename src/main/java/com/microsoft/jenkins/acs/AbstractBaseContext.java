@@ -29,14 +29,17 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
 
     }
 
+    @Override
     public Hashtable<Class, TransitionInfo> getCommands() {
         return commands;
     }
 
+    @Override
     public Class getStartCommandClass() {
         return startCommandClass;
     }
 
+    @Override
     public abstract IBaseCommandData getDataForCommand(ICommand command);
 
     public void setDeploymentState(DeploymentState deployState) {

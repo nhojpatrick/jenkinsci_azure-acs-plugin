@@ -71,7 +71,6 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
 
     @Override
     public BuildStepMonitor getRequiredMonitorService() {
-        // TODO Auto-generated method stub
         return BuildStepMonitor.NONE;
     }
 
@@ -90,21 +89,25 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             @Nonnull final Launcher launcher,
             @Nonnull final TaskListener listener) throws IOException, InterruptedException {
         listener.getLogger().println("Starting Azure Container Service Deployment");
-
         try {
             this.context.configure(listener, new FilePath(launcher.getChannel(), workspace.getRemote()), getServicePrincipal());
-        } catch (AzureCloudException ex) {
-            listener.error("Error configuring deployment context: " + ex.getMessage());
-            ex.printStackTrace();
-        }
 
-        CommandService.executeCommands(context);
+            CommandService.executeCommands(context);
 
-        if (context.getHasError()) {
-            listener.getLogger().println("ERROR: Azure Container Service deployment ended with " + context.getDeploymentState());
+            if (context.getHasError()) {
+                listener.getLogger().println("ERROR: Azure Container Service deployment ended with " + context.getDeploymentState());
+                run.setResult(Result.FAILURE);
+            } else {
+                listener.getLogger().println("Done Azure Container Service Deployment");
+            }
+        } catch (InterruptedException ie) {
+            listener.error("Job execution was interrupted", ie);
+            throw ie;
+        } catch (AzureCloudException ace) {
+            listener.error("Error configuring deployment context: " + ace.getMessage(), ace);
             run.setResult(Result.FAILURE);
-        } else {
-            listener.getLogger().println("Done Azure Container Service Deployment");
+        } finally {
+            this.context.cleanupConfigFile();
         }
     }
 

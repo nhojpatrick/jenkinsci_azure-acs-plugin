@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
+    @Override
     public void execute(IEnablePortCommandData context) {
         File marathonConfigFile = context.getLocalMarathonConfigFile();
         Azure azureClient = context.getAzureClient();
