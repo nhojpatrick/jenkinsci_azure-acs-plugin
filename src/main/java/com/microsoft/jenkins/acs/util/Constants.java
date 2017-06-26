@@ -20,4 +20,9 @@ public class Constants {
     public static final String KUBECONFIG_FILE = ".kube/config";
 
     public static final String KUBECONFIG_PREFIX = "kubeconfig-";
+
+    public static final String DEFAULT_CHARSET = "UTF-8";
+
+    public static final int DCOS_SSH_PORT = 2200;
+    public static final int KUBERNETES_SSH_PORT = 22;
 }

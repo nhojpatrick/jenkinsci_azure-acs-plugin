@@ -8,7 +8,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
-import com.microsoft.jenkins.acs.util.JSchHelper;
+import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.KubernetesClientUtil;
 import hudson.EnvVars;
 import hudson.FilePath;
@@ -47,21 +47,18 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
         }
 
         File kubeconfigFile = null;
+        JSchClient jschClient = null;
         try {
+            jschClient = new JSchClient(context.getMgmtFQDN(), Constants.KUBERNETES_SSH_PORT, context.getLinuxAdminUsername(), sshCredentials, context);
             kubeconfigFile = File.createTempFile(Constants.KUBECONFIG_PREFIX, "", Constants.TEMP_DIR);
-            JSchHelper.scpFrom(
-                    listener.getLogger(),
-                    context.getMgmtFQDN(), JSchHelper.DEFAULT_SSH_PORT,
-                    context.getLinuxAdminUsername(),
-                    sshCredentials,
-                    Constants.KUBECONFIG_FILE,
-                    kubeconfigFile);
+
+            jschClient.copyFrom(Constants.KUBECONFIG_FILE, kubeconfigFile);
 
             Config config = kubeConfigFromFile(kubeconfigFile);
 
-            KubernetesClient client = new DefaultKubernetesClient(config);
+            KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
             KubernetesClientUtil.apply(
-                    run, workspace, launcher, listener, client, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
+                    run, workspace, launcher, listener, kubernetesClient, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
         } catch (Exception e) {
             e.printStackTrace(listener.error(Messages.KubernetesDeploymentCommand_unexpectedError()));
             run.setResult(Result.FAILURE);
@@ -73,6 +70,9 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
                     listener.getLogger().println(
                             Messages.KubernetesDeploymentCommand_failedToDeleteFile(kubeconfigFile.getAbsolutePath()));
                 }
+            }
+            if (jschClient != null) {
+                jschClient.close();
             }
         }
     }
