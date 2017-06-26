@@ -9,8 +9,8 @@
         <version>2.3</version>
     </parent>
 
-    <artifactId>azure-acs-plugin</artifactId>
-    <version>0.1</version>
+    <artifactId>azure-acs</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>hpi</packaging>
 
     <properties>
@@ -44,22 +44,20 @@
         </license>
     </licenses>
 
-    <!-- If you want this to appear on the wiki page:
     <developers>
       <developer>
-        <id>bhacker</id>
-        <name>Bob Q. Hacker</name>
-        <email>bhacker@nowhere.net</email>
+        <id>menxiao</id>
+        <name>Menghua Xiao</name>
+        <email>menxiao@microsoft.com</email>
       </developer>
     </developers>
-    -->
-    <!-- Assuming you want to host on @jenkinsci:
+
     <scm>
-      <connection>scm:git:git://github.com/jenkinsci/${project.artifactId}-plugin.git</connection>
-      <developerConnection>scm:git:git@github.com:jenkinsci/${project.artifactId}-plugin.git</developerConnection>
-      <url>http://github.com/jenkinsci/${project.artifactId}-plugin</url>
+      <connection>scm:git:git://github.com/Microsoft/${project.artifactId}-plugin.git</connection>
+      <developerConnection>scm:git:git@github.com:Microsoft/${project.artifactId}-plugin.git</developerConnection>
+      <url>http://github.com/Microsoft/${project.artifactId}-plugin</url>
     </scm>
-     -->
+
     <repositories>
         <repository>
             <id>repo.jenkins-ci.org</id>

@@ -90,7 +90,7 @@ public class NetworkResourceProviderHelper {
             publicGroup.update()
                     .defineRule(ruleName)
                     .allowInbound()
-                    .fromAddress("Internet")
+                    .fromAnyAddress()
                     .fromAnyPort()
                     .toAnyAddress()
                     .toPort(hostPort)
@@ -143,10 +143,11 @@ public class NetworkResourceProviderHelper {
             String ruleName = "JLBRuleHttp" + hostPort;
             context.logStatus("Creating load balancer rule for port " + hostPort + " with name:" + ruleName);
 
+            final String probeName = "tcpProbe_" + hostPort;
+
             foundLoadBalancer.update()
 
-                    .defineHttpProbe("httpProbe")
-                    .withRequestPath("/")
+                    .defineTcpProbe(probeName)
                     .withPort(hostPort)
                     .attach()
 
@@ -154,7 +155,7 @@ public class NetworkResourceProviderHelper {
                     .withProtocol(TransportProtocol.TCP)
                     .withFrontend(foundLoadBalancer.frontends().values().iterator().next().name())
                     .withFrontendPort(hostPort)
-                    .withProbe("httpProbe")
+                    .withProbe(probeName)
                     .withBackend(foundLoadBalancer.backends().values().iterator().next().name())
                     .attach()
 
