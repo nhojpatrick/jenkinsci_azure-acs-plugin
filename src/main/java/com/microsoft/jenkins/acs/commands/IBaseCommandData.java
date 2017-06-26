@@ -6,6 +6,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.Azure;
+import hudson.EnvVars;
 
 public interface IBaseCommandData {
     void logError(String message);
@@ -17,6 +18,8 @@ public interface IBaseCommandData {
     void logError(String prefix, Exception ex);
 
     void setDeploymentState(DeploymentState deployState);
+
+    EnvVars getEnvVars();
 
     DeploymentState getDeploymentState();
 

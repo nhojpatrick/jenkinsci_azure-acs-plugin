@@ -7,6 +7,7 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 
 public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetPublicFQDNCommandData> {
     @Override
@@ -21,6 +22,10 @@ public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetP
             context.logError(String.format("Cannot load Container Service %s from Resource Group %s", containerServiceName, resourceGroupName));
             return;
         }
+
+        ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
+        context.logStatus("Container service orchestrator type: " + orchestratorType);
+        context.setOrchestratorType(orchestratorType);
 
         final String fqdn = containerService.masterFqdn();
         context.logStatus("Management master FQDN: " + fqdn);
@@ -37,5 +42,7 @@ public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetP
         void setMgmtFQDN(String mgmtFQDN);
 
         void setLinuxRootUsername(String linuxAdminUsername);
+
+        void setOrchestratorType(ContainerServiceOchestratorTypes type);
     }
 }

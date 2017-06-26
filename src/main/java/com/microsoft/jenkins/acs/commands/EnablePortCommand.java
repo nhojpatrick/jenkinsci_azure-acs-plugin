@@ -7,6 +7,7 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.network.LoadBalancer;
 import com.microsoft.azure.management.network.LoadBalancingRule;
 import com.microsoft.azure.management.network.NetworkSecurityGroup;
@@ -15,7 +16,6 @@ import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
@@ -23,7 +23,12 @@ import java.util.Map;
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
     @Override
     public void execute(IEnablePortCommandData context) {
-        String marathonConfigFile = context.getMarathonConfigFile();
+        String marathonConfigFile = context.getConfigFilePaths();
+        if (context.getOrchestratorType() != ContainerServiceOchestratorTypes.DCOS) {
+            context.setDeploymentState(DeploymentState.Success);
+            return;
+        }
+
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
@@ -173,6 +178,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     public interface IEnablePortCommandData extends IBaseCommandData {
-        String getMarathonConfigFile();
+        String getConfigFilePaths();
+
+        ContainerServiceOchestratorTypes getOrchestratorType();
     }
 }

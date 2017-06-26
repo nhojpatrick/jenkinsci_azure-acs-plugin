@@ -17,37 +17,40 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.commands.DeploymentProxyCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
 import com.microsoft.jenkins.acs.commands.GetPublicFQDNCommand;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
+import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DependencyMigration;
+import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
+import hudson.Launcher;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
 import hudson.model.Item;
+import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
+import javax.annotation.Nonnull;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
@@ -56,19 +59,25 @@ public class ACSDeploymentContext extends AbstractBaseContext
         implements GetPublicFQDNCommand.IGetPublicFQDNCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
+        KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
+        DeploymentProxyCommand.IDeploymentProxyCommandData,
         Describable<ACSDeploymentContext> {
 
-    private String azureCredentialsId;
-    private String resourceGroupName;
-    private String containerServiceName;
-    private String sshCredentialsId;
-    private String marathonConfigFile;
+    private final String azureCredentialsId;
+    private final String resourceGroupName;
+    private final String containerServiceName;
+    private final String sshCredentialsId;
+    private final String kubernetesNamespace;
+    private final String configFilePaths;
+    private final boolean enableConfigSubstitution;
 
     private transient Azure azureClient;
     private transient String mgmtFQDN;
     private transient String linuxAdminUsername;
+    private transient ContainerServiceOchestratorTypes orchestratorType;
     private transient File localMarathonConfigFile;
     private transient SSHUserPrivateKey sshCredentials;
+    private transient EnvVars envVars;
 
     @DataBoundConstructor
     public ACSDeploymentContext(
@@ -76,12 +85,16 @@ public class ACSDeploymentContext extends AbstractBaseContext
             final String resourceGroupName,
             final String containerServiceName,
             final String sshCredentialsId,
-            final String marathonConfigFile) {
+            final String kubernetesNamespace,
+            final String configFilePaths,
+            final boolean enableConfigSubstitution) {
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = resourceGroupName;
         this.containerServiceName = containerServiceName;
         this.sshCredentialsId = sshCredentialsId;
-        this.marathonConfigFile = marathonConfigFile;
+        this.kubernetesNamespace = kubernetesNamespace;
+        this.configFilePaths = configFilePaths;
+        this.enableConfigSubstitution = enableConfigSubstitution;
     }
 
     @Override
@@ -94,8 +107,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public String getMarathonConfigFile() {
-        return this.marathonConfigFile;
+    public String getConfigFilePaths() {
+        return this.configFilePaths;
     }
 
     public String getSshCredentialsId() {
@@ -141,6 +154,16 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
+    public ContainerServiceOchestratorTypes getOrchestratorType() {
+        return orchestratorType;
+    }
+
+    @Override
+    public void setOrchestratorType(ContainerServiceOchestratorTypes orchestratorType) {
+        this.orchestratorType = orchestratorType;
+    }
+
+    @Override
     public String getContainerServiceName() {
         return containerServiceName;
     }
@@ -150,14 +173,35 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.azureClient;
     }
 
-    public void configure(TaskListener listener, FilePath workspacePath) throws IOException, InterruptedException, AzureCloudException {
+    @Override
+    public String getKubernetesNamespace() {
+        return kubernetesNamespace;
+    }
+
+    @Override
+    public boolean isEnableConfigSubstitution() {
+        return enableConfigSubstitution;
+    }
+
+    @Override
+    public EnvVars getEnvVars() {
+        return envVars;
+    }
+
+    public void configure(
+            @Nonnull final Run<?, ?> run,
+            @Nonnull final FilePath workspace,
+            @Nonnull final Launcher launcher,
+            @Nonnull final TaskListener listener) throws IOException, InterruptedException, AzureCloudException {
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
+        this.envVars = run.getEnvironment(listener);
+
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
-        commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), MarathonDeploymentCommand.class, null));
-        commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
+        commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), DeploymentProxyCommand.class, null));
+        commands.put(DeploymentProxyCommand.class, new TransitionInfo(new DeploymentProxyCommand(), EnablePortCommand.class, null));
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-        super.configure(listener, commands, GetPublicFQDNCommand.class);
+        super.configure(run, workspace, launcher, listener, commands, GetPublicFQDNCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 
@@ -281,7 +325,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 PagedList<ContainerService> containerServices =
                         azureClient.containerServices().listByResourceGroup(resourceGroupName);
                 for (ContainerService containerService : containerServices) {
-                    if (containerService.orchestratorType() == ContainerServiceOchestratorTypes.DCOS) {
+                    ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
+                    if (orchestratorType == ContainerServiceOchestratorTypes.DCOS ||
+                            orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
                         model.add(containerService.name());
                     }
                 }
@@ -296,9 +342,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return model;
         }
 
-        public FormValidation doCheckMarathonConfigFile(@QueryParameter String value) {
+        public FormValidation doCheckConfigFilePaths(@QueryParameter String value) {
             if (value == null || value.length() == 0) {
-                return FormValidation.error("Marathon config file path is required.");
+                return FormValidation.error("Config file path(s) is required.");
             }
 
             return FormValidation.ok();
@@ -321,6 +367,10 @@ public class ACSDeploymentContext extends AbstractBaseContext
             }
             ListBoxModel m = new StandardListBoxModel().withAll(credentials);
             return m;
+        }
+
+        public String getDefaultKubernetesNamespace() {
+            return "default";
         }
 
         /**

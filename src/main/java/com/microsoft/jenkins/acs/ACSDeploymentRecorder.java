@@ -58,7 +58,11 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             @Nonnull final TaskListener listener) throws IOException, InterruptedException {
         listener.getLogger().println("Starting Azure Container Service Deployment");
         try {
-            this.context.configure(listener, new FilePath(launcher.getChannel(), workspace.getRemote()));
+            this.context.configure(
+                    run,
+                    workspace,
+                    launcher,
+                    listener);
 
             CommandService.executeCommands(context);
 

@@ -20,8 +20,16 @@
         <c:select expressionAllowed="false"/>
     </f:entry>
 
-    <f:entry title="${%Marathon_Config_File_Location}" field="marathonConfigFile"
-             help="/plugin/azure-acs-plugin/help-marathonConfigFile.html">
+    <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace" help="/plugin/azure-kubernetes/ACSKubernetesPublisher/help-kubernetesNamespace.html">
+        <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" />
+    </f:entry>
+
+    <f:entry title="${%configFilePaths_title}" field="configFilePaths"
+             help="/plugin/azure-acs-plugin/help-configFilePaths.html">
         <f:textbox/>
+    </f:entry>
+
+    <f:entry title="${%enableConfigSubstitution_title}" field="enableConfigSubstitution" help="/plugin/azure-kubernetes/ACSKubernetesPublisher/help-enableConfigSubstitution.html">
+        <f:checkbox />
     </f:entry>
 </j:jelly>

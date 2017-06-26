@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See License.txt in the project root for
  * license information.
@@ -14,10 +14,11 @@ import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
+import hudson.FilePath;
+import hudson.Launcher;
 import hudson.util.Secret;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
@@ -30,7 +31,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         String host = context.getMgmtFQDN();
         SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         String linuxAdminUsername = context.getLinuxAdminUsername();
-        String marathonConfigFile = context.getMarathonConfigFile();
+
+        String marathonConfigFile = context.getConfigFilePaths();
 
         Session session = null;
         try {
@@ -139,8 +141,12 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         String getLinuxAdminUsername();
 
-        String getMarathonConfigFile();
-
         SSHUserPrivateKey getSshCredentials();
+
+        String getConfigFilePaths();
+
+        Launcher getLauncher();
+
+        FilePath getWorkspace();
     }
 }
