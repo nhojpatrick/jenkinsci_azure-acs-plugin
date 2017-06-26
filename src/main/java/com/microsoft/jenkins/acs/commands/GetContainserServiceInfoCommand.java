@@ -9,9 +9,9 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 
-public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetPublicFQDNCommandData> {
+public class GetContainserServiceInfoCommand implements ICommand<GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData> {
     @Override
-    public void execute(GetPublicFQDNCommand.IGetPublicFQDNCommandData context) {
+    public void execute(IGetContainserServiceInfoCommandData context) {
         context.logStatus("Getting management public FQDN.");
         final Azure azureClient = context.getAzureClient();
         final String resourceGroupName = context.getResourceGroupName();
@@ -38,7 +38,7 @@ public class GetPublicFQDNCommand implements ICommand<GetPublicFQDNCommand.IGetP
         context.setDeploymentState(DeploymentState.Success);
     }
 
-    public interface IGetPublicFQDNCommandData extends IBaseCommandData {
+    public interface IGetContainserServiceInfoCommandData extends IBaseCommandData {
         void setMgmtFQDN(String mgmtFQDN);
 
         void setLinuxRootUsername(String linuxAdminUsername);

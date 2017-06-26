@@ -8,6 +8,7 @@ package com.microsoft.jenkins.acs.services;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
+import com.microsoft.jenkins.acs.commands.INextCommandAware;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 
 import java.util.Hashtable;
@@ -26,7 +27,14 @@ public class CommandService {
                 TransitionInfo previous = current;
                 current = null;
 
-                if (commandData.getDeploymentState() == DeploymentState.Success &&
+                if (command instanceof INextCommandAware) {
+                    if (commandData.getDeploymentState() == DeploymentState.Success) {
+                        current = commands.get(((INextCommandAware) command).getNextCommand());
+                    } else {
+                        // consider the INextCommandAware command as failure if deployment state is not Success
+                        return false;
+                    }
+                } else if (commandData.getDeploymentState() == DeploymentState.Success &&
                         previous.getSuccess() != null) {
                     current = commands.get(previous.getSuccess());
                 } else if (commandData.getDeploymentState() == DeploymentState.UnSuccessful &&

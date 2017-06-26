@@ -17,10 +17,10 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
-import com.microsoft.jenkins.acs.commands.DeploymentProxyCommand;
+import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
-import com.microsoft.jenkins.acs.commands.GetPublicFQDNCommand;
+import com.microsoft.jenkins.acs.commands.GetContainserServiceInfoCommand;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
@@ -56,11 +56,11 @@ import java.util.Hashtable;
 import java.util.List;
 
 public class ACSDeploymentContext extends AbstractBaseContext
-        implements GetPublicFQDNCommand.IGetPublicFQDNCommandData,
+        implements GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
-        DeploymentProxyCommand.IDeploymentProxyCommandData,
+        DeploymentChoiceCommand.IDeploymentChoiceCommandData,
         Describable<ACSDeploymentContext> {
 
     private final String azureCredentialsId;
@@ -198,10 +198,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.envVars = run.getEnvironment(listener);
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
-        commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), DeploymentProxyCommand.class, null));
-        commands.put(DeploymentProxyCommand.class, new TransitionInfo(new DeploymentProxyCommand(), EnablePortCommand.class, null));
+        commands.put(GetContainserServiceInfoCommand.class, new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
+
+        // DeploymentChoiceCommand will point out the next step through INextCommandAware
+        commands.put(DeploymentChoiceCommand.class, new TransitionInfo(new DeploymentChoiceCommand(), null, null));
+
+        commands.put(KubernetesDeploymentCommand.class, new TransitionInfo(new KubernetesDeploymentCommand(), null, null));
+        commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-        super.configure(run, workspace, launcher, listener, commands, GetPublicFQDNCommand.class);
+        super.configure(run, workspace, launcher, listener, commands, GetContainserServiceInfoCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 
