@@ -63,7 +63,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     private final String azureCredentialsId;
     private final String resourceGroupName;
-    private final String containerServiceName;
+    private final String containerService;
     private final String sshCredentialsId;
     private final String kubernetesNamespace;
     private final String configFilePaths;
@@ -79,14 +79,14 @@ public class ACSDeploymentContext extends AbstractBaseContext
     public ACSDeploymentContext(
             final String azureCredentialsId,
             final String resourceGroupName,
-            final String containerServiceName,
+            final String containerService,
             final String sshCredentialsId,
             final String kubernetesNamespace,
             final String configFilePaths,
             final boolean enableConfigSubstitution) {
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = resourceGroupName;
-        this.containerServiceName = containerServiceName;
+        this.containerService = containerService;
         this.sshCredentialsId = sshCredentialsId;
         this.kubernetesNamespace = kubernetesNamespace;
         this.configFilePaths = configFilePaths;
@@ -159,9 +159,30 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.orchestratorType = orchestratorType;
     }
 
+    public String getContainerService() {
+        return this.containerService;
+    }
+
+
+    /**
+     * In order to pass the container service orchestrator type to the front-end, the {@link #containerService} field
+     * will be in the following format. This will be stored into the configuration. At runtime, we need to extract
+     * the container service name in order to pass it to the Azure service.
+     *
+     * <code>
+     * container_service_name|orchestrator_type
+     * </code>
+     *
+     * @see #getContainerService()
+     */
     @Override
     public String getContainerServiceName() {
-        return containerServiceName;
+        String containerService = getContainerService();
+        if (StringUtils.isBlank(containerService)) {
+            throw new IllegalArgumentException("Blank container service");
+        }
+        String[] part = containerService.split("\\|");
+        return part[0];
     }
 
     @Override
@@ -286,7 +307,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return model;
         }
 
-        public ListBoxModel doFillContainerServiceNameItems(
+        public ListBoxModel doFillContainerServiceItems(
                 @QueryParameter final String azureCredentialsId,
                 @QueryParameter final String resourceGroupName) {
             ListBoxModel model = new ListBoxModel();
@@ -315,7 +336,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
                     if (orchestratorType == ContainerServiceOchestratorTypes.DCOS ||
                             orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
-                        model.add(containerService.name());
+                        String name = String.format("%s (%s)",
+                                containerService.name(), containerService.orchestratorType());
+                        String value = String.format("%s|%s",
+                                containerService.name(), containerService.orchestratorType());
+                        model.add(name, value);
                     }
                 }
             } catch (Exception ex) {
