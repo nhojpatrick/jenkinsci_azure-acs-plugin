@@ -156,6 +156,7 @@ public class AzureManagementServiceDelegate {
                         baseCommandData.logStatus(
                                 String.format("Succeeded(%s): %s:%s", state, type, resource));
                         completed--;
+                        break;
                     default:
                         LOGGER.log(Level.INFO, "To Be Completed({0}): {1}:{2}", new Object[]{state, type, resource});
                         baseCommandData.logStatus(

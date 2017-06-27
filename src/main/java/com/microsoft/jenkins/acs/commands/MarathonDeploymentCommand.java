@@ -27,7 +27,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         String sshFile = context.getSshKeyFileLocation();
         String filePassword = context.getSshKeyFilePassword();
         String linuxAdminUsername = context.getLinuxAdminUsername();
-        File marathonConfigFile = context.getLocalMarathonConfigFile();
+        String marathonConfigFile = context.getMarathonConfigFile();
 
         Session session = null;
         try {
@@ -43,11 +43,11 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             ChannelSftp channel = null;
             channel = (ChannelSftp) session.openChannel("sftp");
             channel.connect();
-            String appId = JsonHelper.getId(marathonConfigFile.getAbsolutePath());
+            String appId = JsonHelper.getId(marathonConfigFile);
             String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
             context.logStatus("Copying marathon file to remote file: " + deployedFilename);
             try {
-                channel.put(marathonConfigFile.getAbsolutePath(), deployedFilename);
+                channel.put(marathonConfigFile, deployedFilename);
             } catch (SftpException e) {
                 context.logError("Error creating remote file:", e);
                 return;
@@ -102,7 +102,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                         throw new AzureCloudException("Error building or running docker image. Process exected with status: " +
                                 execChnl.getExitStatus());
                     }
-                    System.out.println("exit-status: " + execChnl.getExitStatus());
+                    context.logStatus("<== exit status: " + execChnl.getExitStatus());
                     break;
                 }
             }
@@ -124,6 +124,6 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         String getLinuxAdminUsername();
 
-        File getLocalMarathonConfigFile();
+        String getMarathonConfigFile();
     }
 }

@@ -26,7 +26,7 @@
              ~ stapler-plugin.version: The Stapler Maven plugin version required by the plugin.
         -->
         <azuresdk.version>1.1.0</azuresdk.version>
-        <azure-credentials-plugin.version>1.1</azure-credentials-plugin.version>
+        <azure-credentials-plugin.version>1.2</azure-credentials-plugin.version>
     </properties>
 
     <name>Azure Container Service Plugin</name>

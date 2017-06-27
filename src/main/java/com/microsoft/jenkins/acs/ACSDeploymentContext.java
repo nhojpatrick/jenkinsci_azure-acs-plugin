@@ -134,6 +134,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return this.sshRSAPublicKey;
     }
 
+    @Override
     public String getMarathonConfigFile() {
         return this.marathonConfigFile;
     }
@@ -179,11 +180,6 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public File getLocalMarathonConfigFile() {
-        return localMarathonConfigFile;
-    }
-
-    @Override
     public IBaseCommandData getDataForCommand(ICommand command) {
         return this;
     }
@@ -196,17 +192,6 @@ public class ACSDeploymentContext extends AbstractBaseContext
     public void configure(TaskListener listener, FilePath workspacePath, AzureCredentials.ServicePrincipal servicePrincipal) throws IOException, InterruptedException, AzureCloudException {
         this.servicePrincipal = servicePrincipal;
         this.azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
-
-        this.localMarathonConfigFile = File.createTempFile("marathon-", ".json", new File(System.getProperty("java.io.tmpdir")));
-        FilePath[] files = workspacePath.list(marathonConfigFile);
-        if (files.length < 1) {
-            throw new IllegalArgumentException("Marathon configuration file is not found at " + marathonConfigFile);
-        } else if (files.length > 1) {
-            throw new IllegalArgumentException("Multiple Marathon configuration files were found at " + marathonConfigFile);
-        }
-        try (OutputStream out = new FileOutputStream(localMarathonConfigFile)) {
-            IOUtils.copy(files[0].toURI().toURL().openStream(), out);
-        }
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
         commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));

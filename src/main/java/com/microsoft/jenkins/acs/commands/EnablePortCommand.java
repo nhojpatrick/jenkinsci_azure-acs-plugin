@@ -17,13 +17,13 @@ import java.util.ArrayList;
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
     @Override
     public void execute(IEnablePortCommandData context) {
-        File marathonConfigFile = context.getLocalMarathonConfigFile();
+        String marathonConfigFile = context.getMarathonConfigFile();
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         String dnsNamePrefix = context.getDnsNamePrefix();
         try {
             ArrayList<Integer> hostPorts =
-                    JsonHelper.getHostPorts(marathonConfigFile.getAbsolutePath());
+                    JsonHelper.getHostPorts(marathonConfigFile);
             context.logStatus("Enabling ports");
             for (Integer hPort : hostPorts) {
                 boolean retVal = NetworkResourceProviderHelper.createSecurityGroup(context, azureClient, resourceGroupName, dnsNamePrefix, hPort);
@@ -46,6 +46,6 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     public interface IEnablePortCommandData extends IBaseCommandData {
         String getDnsNamePrefix();
 
-        File getLocalMarathonConfigFile();
+        String getMarathonConfigFile();
     }
 }
