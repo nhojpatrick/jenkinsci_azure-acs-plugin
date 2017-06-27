@@ -5,7 +5,12 @@
  */
 package com.microsoft.jenkins.acs.util;
 
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+
 import java.io.File;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Constants {
     /**
@@ -23,6 +28,22 @@ public class Constants {
 
     public static final String DEFAULT_CHARSET = "UTF-8";
 
+    public static final Set<ContainerServiceOchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
+            ContainerServiceOchestratorTypes.KUBERNETES,
+            ContainerServiceOchestratorTypes.DCOS
+    ));
+
     public static final int DCOS_SSH_PORT = 2200;
     public static final int KUBERNETES_SSH_PORT = 22;
+
+    public static final int sshPort(ContainerServiceOchestratorTypes type) {
+        switch (type) {
+            case DCOS:
+                return DCOS_SSH_PORT;
+            case KUBERNETES:
+                return KUBERNETES_SSH_PORT;
+            default:
+                return -1;
+        }
+    }
 }

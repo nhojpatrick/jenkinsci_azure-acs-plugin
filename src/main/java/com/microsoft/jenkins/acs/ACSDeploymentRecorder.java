@@ -101,7 +101,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return "Azure Container Service Configuration";
+            return "Publish to Azure Container Service";
         }
     }
 }

@@ -35,6 +35,9 @@
         <f:checkbox/>
     </f:entry>
 
+    <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"
+                      with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId"/>
+
     <st:once>
         <script type="text/javascript" src="${rootURL}/plugin/azure-acs/scripts/deployment-context.js"></script>
     </st:once>

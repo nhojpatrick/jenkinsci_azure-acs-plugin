@@ -37,7 +37,7 @@ public class JSchClient {
             final int port,
             @Nullable final String username,
             final SSHUserPrivateKey credentials,
-            IBaseCommandData context) {
+            @Nullable IBaseCommandData context) {
         this.host = host;
         this.port = port;
         this.username = StringUtils.isBlank(username) ? username : credentials.getUsername();
@@ -74,7 +74,7 @@ public class JSchClient {
     }
 
     public void copyTo(final File sourceFile, final String remotePath) throws JSchException {
-        context.logStatus(String.format("copy file %s to %s:%s", sourceFile, host, remotePath));
+        log(String.format("copy file %s to %s:%s", sourceFile, host, remotePath));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
             public void apply(ChannelSftp channel) throws JSchException, SftpException {
@@ -95,13 +95,13 @@ public class JSchClient {
             try {
                 in.close();
             } catch (IOException e) {
-                context.logStatus("Failed to close input stream: " + e.getMessage());
+                log("Failed to close input stream: " + e.getMessage());
             }
         }
     }
 
     public void copyFrom(final String remotePath, final File destFile) throws JSchException {
-        context.logStatus(String.format("copy file %s:%s to %s", host, remotePath, destFile));
+        log(String.format("copy file %s:%s to %s", host, remotePath, destFile));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
             public void apply(ChannelSftp channel) throws JSchException, SftpException {
@@ -143,7 +143,7 @@ public class JSchClient {
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
 
-            context.logStatus("==> exec: " + command);
+            log("==> exec: " + command);
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024];
 
@@ -164,16 +164,15 @@ public class JSchClient {
                     if (in.available() > 0) {
                         continue;
                     }
-                    context.logStatus("<== command exit status: " + channel.getExitStatus());
+                    log("<== command exit status: " + channel.getExitStatus());
                     if (channel.getExitStatus() < 0) {
-                        throw new RuntimeException("Error building or running docker image. Process exected with status: " +
-                                channel.getExitStatus());
+                        throw new RuntimeException("Error executing SSH command: " + channel.getExitStatus());
                     }
                     break;
                 }
             }
             String serverOutput = output.toString(Constants.DEFAULT_CHARSET);
-            context.logStatus("<== " + serverOutput);
+            log("<== " + serverOutput);
         } catch (UnsupportedEncodingException e) {
             throw new IllegalArgumentException("Failed to execute command", e);
         } finally {
@@ -199,6 +198,12 @@ public class JSchClient {
 
     public String getUsername() {
         return username;
+    }
+
+    private void log(String message) {
+        if (context != null) {
+            context.logStatus(message);
+        }
     }
 
     private interface ChannelSftpConsumer {

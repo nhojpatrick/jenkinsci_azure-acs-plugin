@@ -1,6 +1,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.util.Constants;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -10,11 +11,6 @@ import java.util.Set;
  * Makes decision on which deployment method to be used based on the configuration.
  */
 public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand.IDeploymentChoiceCommandData>, INextCommandAware {
-    private static final Set<ContainerServiceOchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
-            ContainerServiceOchestratorTypes.KUBERNETES,
-            ContainerServiceOchestratorTypes.DCOS
-    ));
-
     private ContainerServiceOchestratorTypes orchestratorType;
 
     @Override
@@ -24,7 +20,7 @@ public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand
             context.logError("Container service's orchestrator type was not found");
             return;
         }
-        if (!SUPPORTED_ORCHESTRATOR.contains(type)) {
+        if (!Constants.SUPPORTED_ORCHESTRATOR.contains(type)) {
             context.logError("Deployment of container service with orchestrator type " + type + " is not supported");
             return;
         }

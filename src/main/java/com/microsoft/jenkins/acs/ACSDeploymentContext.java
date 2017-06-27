@@ -12,6 +12,7 @@ import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import com.microsoft.azure.PagedList;
+import com.microsoft.azure.credentials.AzureTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
@@ -30,6 +31,7 @@ import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DependencyMigration;
+import com.microsoft.jenkins.acs.util.JSchClient;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -168,7 +170,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
      * In order to pass the container service orchestrator type to the front-end, the {@link #containerService} field
      * will be in the following format. This will be stored into the configuration. At runtime, we need to extract
      * the container service name in order to pass it to the Azure service.
-     *
+     * <p>
      * <code>
      * container_service_name|orchestrator_type
      * </code>
@@ -177,12 +179,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
      */
     @Override
     public String getContainerServiceName() {
-        String containerService = getContainerService();
-        if (StringUtils.isBlank(containerService)) {
-            throw new IllegalArgumentException("Blank container service");
-        }
-        String[] part = containerService.split("\\|");
-        return part[0];
+        return getContainerServiceName(getContainerService());
     }
 
     @Override
@@ -233,6 +230,60 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return creds;
     }
 
+    public static String getContainerServiceName(String containerService) {
+        if (StringUtils.isBlank(containerService)) {
+            throw new IllegalArgumentException("Blank container service");
+        }
+        String[] part = containerService.split("\\|");
+        return part[0];
+    }
+
+    public static String getOrchestratorType(String containerService) {
+        if (StringUtils.isBlank(containerService)) {
+            return null;
+        }
+        String[] parts = containerService.split("\\|");
+        return parts.length == 2 ? parts[1] : null;
+    }
+
+    public static String validate(
+            final String azureCredentialsId,
+            final String resourceGroup,
+            final String containerService,
+            final String sshCredentialsId,
+            final String kubernetesNamespace) {
+        AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
+
+        if (StringUtils.isBlank(servicePrincipal.getSubscriptionId())) {
+            return Messages.ACSDeploymentContext_missingCredentials();
+        }
+        if (StringUtils.isBlank(resourceGroup) || Constants.INVALID_OPTION.equals(resourceGroup)) {
+            return Messages.ACSDeploymentContext_missingResourceGroup();
+        }
+        if (StringUtils.isBlank(containerService) || Constants.INVALID_OPTION.equals(containerService)) {
+            return Messages.ACSDeploymentContext_missingContainerServiceName();
+        }
+        if (StringUtils.isBlank(sshCredentialsId) || getSshCredentials(sshCredentialsId) == null) {
+            return Messages.ACSDeploymentContext_missingSSHCredentials();
+        }
+
+        ContainerServiceOchestratorTypes orchestratorType =
+                ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
+        if (orchestratorType == null) {
+            return Messages.ACSDeploymentContext_missingOrchestratorType();
+        }
+
+        if (!Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
+            return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorType);
+        }
+
+        if (ContainerServiceOchestratorTypes.KUBERNETES == orchestratorType
+                && StringUtils.isBlank(kubernetesNamespace)) {
+            return Messages.ACSDeploymentContext_missingKubernetesNamespace();
+        }
+        return null;
+    }
+
     @Extension
     public static final class DescriptorImpl extends Descriptor<ACSDeploymentContext> {
         public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
@@ -258,21 +309,55 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return model;
         }
 
-        public FormValidation doVerifyConfiguration(@QueryParameter String azureCredentialsId) {
-            if (StringUtils.isBlank(azureCredentialsId)) {
-                return FormValidation.error("Error: no Azure credentials are selected");
+        public FormValidation doVerifyConfiguration(@QueryParameter final String azureCredentialsId,
+                                                    @QueryParameter final String resourceGroupName,
+                                                    @QueryParameter final String containerService,
+                                                    @QueryParameter final String sshCredentialsId,
+                                                    @QueryParameter final String kubernetesNamespace) {
+            String validateResult = validate(
+                    azureCredentialsId,
+                    resourceGroupName,
+                    containerService,
+                    sshCredentialsId,
+                    kubernetesNamespace);
+            if (validateResult != null) {
+                return FormValidation.error(validateResult);
             }
+
             try {
-                AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
-                if (StringUtils.isBlank(servicePrincipal.getClientId())) {
-                    return FormValidation.error("Cannot get the service principal from the selected Azure credentials ID");
+                Azure azureClient = AzureHelper.buildClientFromCredentialsId(azureCredentialsId);
+
+                ResourceGroup group = azureClient.resourceGroups().getByName(resourceGroupName);
+                if (group == null) {
+                    return FormValidation.error(Messages.ACSDeploymentContext_resourceGroupNotFound());
                 }
 
-                Azure azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
-                azureClient.storageAccounts().checkNameAvailability("CI_SYSTEM");
-                return FormValidation.ok(Constants.OP_SUCCESS);
+                ContainerService container = azureClient
+                        .containerServices()
+                        .getByResourceGroup(resourceGroupName, getContainerServiceName(containerService));
+                if (container == null) {
+                    return FormValidation.error(Messages.ACSDeploymentContext_containerServiceNotFound());
+                }
+
+                if (!container.orchestratorType().toString().equalsIgnoreCase(getOrchestratorType(containerService))) {
+                    return FormValidation.error(Messages.ACSDeploymentContext_containerServiceTypeMissMatch());
+                }
+
+                try {
+                    JSchClient jschClient = new JSchClient(
+                            container.masterFqdn(),
+                            Constants.sshPort(container.orchestratorType()),
+                            container.linuxRootUsername(),
+                            getSshCredentials(sshCredentialsId), null);
+
+                    jschClient.execRemote("ls");
+                } catch (Exception e) {
+                    return FormValidation.error(Messages.ACSDeploymentContext_sshFailure(e.getMessage()));
+                }
+
+                return FormValidation.ok(Messages.ACSDeploymentContext_validationSuccess());
             } catch (Exception e) {
-                return FormValidation.error("Error validating configuration: " + e.getMessage());
+                return FormValidation.error(Messages.ACSDeploymentContext_validationError(e.getMessage()));
             }
         }
 
