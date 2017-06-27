@@ -1,12 +1,17 @@
 package com.microsoft.jenkins.acs;
 
+import com.microsoft.jenkins.acs.util.Constants;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.Run;
 import hudson.model.TaskListener;
+import org.apache.commons.io.IOUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 
 /**
@@ -55,5 +60,22 @@ public class JobContext {
 
     public FilePath workspacePath() {
         return new FilePath(launcher.getChannel(), workspace.getRemote());
+    }
+
+    public InputStream replaceMacro(InputStream original, boolean enabled) throws IOException {
+        if (!enabled) {
+            return original;
+        }
+        try {
+            String content = IOUtils.toString(original, Constants.DEFAULT_CHARSET);
+            if (content != null) {
+                content = Util.replaceMacro(content, envVars());
+                return new ByteArrayInputStream(content.getBytes());
+            } else {
+                throw new IllegalArgumentException("null content returned");
+            }
+        } finally {
+            original.close();
+        }
     }
 }

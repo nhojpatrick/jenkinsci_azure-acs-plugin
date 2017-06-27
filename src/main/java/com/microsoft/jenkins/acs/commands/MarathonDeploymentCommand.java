@@ -7,22 +7,23 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.JSchException;
+import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import hudson.FilePath;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
     @Override
     public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {
-        String host = context.getMgmtFQDN();
-        SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        String linuxAdminUsername = context.getLinuxAdminUsername();
-        String relativeFilePath = context.getConfigFilePaths();
+        final String host = context.getMgmtFQDN();
+        final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
+        final String linuxAdminUsername = context.getLinuxAdminUsername();
+        final String relativeFilePath = context.getConfigFilePaths();
+        final JobContext jobContext = context.jobContext();
 
         JSchClient client = null;
         try {
@@ -38,7 +39,9 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             for (FilePath configPath : configPaths) {
                 String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
                 context.logStatus(String.format("Copying marathon config file `%s' to remote: %s:%s", configPath.toURI(), client.getHost(), deployedFilename));
-                client.copyTo(configPath.read(), deployedFilename);
+                client.copyTo(
+                        jobContext.replaceMacro(configPath.read(), context.isEnableConfigSubstitution()),
+                        deployedFilename);
 
                 String appId = JsonHelper.getId(configPath.read());
                 //ignore if app does not exist
@@ -75,5 +78,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         SSHUserPrivateKey getSshCredentials();
 
         String getConfigFilePaths();
+
+        boolean isEnableConfigSubstitution();
     }
 }

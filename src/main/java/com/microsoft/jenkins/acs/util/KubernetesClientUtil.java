@@ -2,21 +2,14 @@ package com.microsoft.jenkins.acs.util;
 
 import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
-import hudson.EnvVars;
 import hudson.FilePath;
-import hudson.Util;
 import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.extensions.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import org.apache.commons.io.IOUtils;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
-import java.net.URI;
-import java.nio.charset.Charset;
 import java.util.List;
 
 /**
@@ -40,7 +33,6 @@ public final class KubernetesClientUtil {
             final String configFilePaths,
             final boolean enableConfigSubstitution) throws IOException, InterruptedException {
 
-        final EnvVars envVars = jobContext.envVars();
         final PrintStream logger = jobContext.logger();
 
         FilePath workspacePath = jobContext.workspacePath();
@@ -59,12 +51,10 @@ public final class KubernetesClientUtil {
             }
 
             for (FilePath path : paths) {
-                URI configURI = path.toURI();
-
-                logger.println(Messages.KubernetesClientUtil_loadingConfiguration() + configURI);
+                logger.println(Messages.KubernetesClientUtil_loadingConfiguration() + path);
 
                 List<HasMetadata> resources = client
-                        .load(prepareConfig(configURI, enableConfigSubstitution, envVars))
+                        .load(jobContext.replaceMacro(path.read(), enableConfigSubstitution))
                         .get();
                 if (resources.isEmpty()) {
                     logger.println(Messages.KubernetesClientUtil_noResourceLoadedFrom() + path);
@@ -92,29 +82,6 @@ public final class KubernetesClientUtil {
                 }
             }
         }
-    }
-
-    private static InputStream prepareConfig(
-            final URI configURI,
-            final boolean enableConfigSubstitution,
-            final EnvVars envVars) throws IOException {
-        InputStream stream = configURI.toURL().openStream();
-        if (!enableConfigSubstitution) {
-            return stream;
-        }
-
-        try {
-            String content = IOUtils.toString(stream, Charset.forName("UTF-8"));
-            if (content != null) {
-                content = Util.replaceMacro(content, envVars);
-            } else {
-                throw new IOException("Cannot parse stream content for " + configURI);
-            }
-            return new ByteArrayInputStream(content.getBytes());
-        } finally {
-            stream.close();
-        }
-
     }
 
     private KubernetesClientUtil() {
