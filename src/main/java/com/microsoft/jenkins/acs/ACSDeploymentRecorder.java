@@ -56,7 +56,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
             @Nonnull final TaskListener listener) throws IOException, InterruptedException {
-        listener.getLogger().println("Starting Azure Container Service Deployment");
+        listener.getLogger().println(Messages.ACSDeploymentRecorder_starting());
         try {
             this.context.configure(
                     run,
@@ -67,16 +67,16 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             CommandService.executeCommands(context);
 
             if (context.getHasError()) {
-                listener.getLogger().println("ERROR: Azure Container Service deployment ended with " + context.getDeploymentState());
+                listener.getLogger().println(Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
                 run.setResult(Result.FAILURE);
             } else {
-                listener.getLogger().println("Done Azure Container Service Deployment");
+                listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
             }
         } catch (InterruptedException ie) {
-            listener.error("Job execution was interrupted", ie);
+            listener.error(Messages.ACSDeploymentRecorder_interrupted(), ie);
             throw ie;
         } catch (AzureCloudException ace) {
-            listener.error("Error configuring deployment context: " + ace.getMessage(), ace);
+            listener.error(Messages.ACSDeploymentRecorder_errorConfig(ace.getMessage()), ace);
             run.setResult(Result.FAILURE);
         }
     }
@@ -101,7 +101,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return "Publish to Azure Container Service";
+            return Messages.ACSDeploymentRecorder_displayName();
         }
     }
 }

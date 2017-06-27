@@ -67,7 +67,7 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
     }
 
     public void logError(Exception ex) {
-        this.logError("Error: ", ex);
+        this.logError(Messages.AbstractBaseContext_error(), ex);
     }
 
     public void logError(String prefix, Exception ex) {

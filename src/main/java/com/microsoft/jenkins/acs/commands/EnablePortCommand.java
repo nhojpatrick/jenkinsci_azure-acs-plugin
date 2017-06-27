@@ -13,6 +13,7 @@ import com.microsoft.azure.management.network.LoadBalancingRule;
 import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
 import com.microsoft.azure.management.network.TransportProtocol;
+import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import hudson.FilePath;
@@ -37,16 +38,16 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
             for (FilePath configPath : configPaths) {
                 ArrayList<Integer> hostPorts = JsonHelper.getHostPorts(configPath.read());
-                context.logStatus("Enabling ports: " + hostPorts);
+                context.logStatus(Messages.EnablePortCommand_enabling(hostPorts));
                 for (Integer hPort : hostPorts) {
                     boolean retVal = createSecurityGroup(context, azureClient, resourceGroupName, hPort);
                     if (retVal) {
                         retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
                         if (!retVal) {
-                            throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
+                            throw new AzureCloudException(Messages.EnablePortCommand_errorEnabling(hPort));
                         }
                     } else {
-                        throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
+                        throw new AzureCloudException(Messages.EnablePortCommand_errorEnabling(hPort));
                     }
                 }
             }
@@ -62,8 +63,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             throws InterruptedException, IOException, AzureCloudException {
 
         PagedList<NetworkSecurityGroup> securityGroups = azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
-        context.logStatus("Creating security rule for port " + hostPort + " if needed.");
-        boolean secGroupFound = false;
+        context.logStatus(Messages.EnablePortCommand_createSecurityGroupIfNeeded(hostPort));
+        boolean securityRuleFound = false;
         int maxPrio = Integer.MIN_VALUE;
         NetworkSecurityGroup publicGroup = null;
         OUTER:
@@ -81,27 +82,28 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 }
 
                 if (rule.destinationPortRange().equals(hostPort + "")) {
-                    context.logStatus("Security rule for port " + hostPort + " found.");
-                    secGroupFound = true;
+                    context.logStatus(Messages.EnablePortCommand_securityRuleFound(hostPort));
+                    securityRuleFound = true;
                     break OUTER;
                 }
             }
         }
 
         if (publicGroup == null) {
+            // TODO: create one
             return false;
         }
 
-        if (!secGroupFound) {
-            context.logStatus("Security rule for port " + hostPort + " not found.");
+        if (!securityRuleFound) {
+            context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(hostPort));
             maxPrio = maxPrio + 10;
             if (maxPrio > 4086) {
-                context.logError("Exceeded max priority for inbound security rules.");
-                throw new AzureCloudException("Exceeded max priority for inbound security rules.");
+                context.logError(Messages.EnablePortCommand_exceedMaxPriority());
+                throw new AzureCloudException(Messages.EnablePortCommand_exceedMaxPriority());
             }
 
             String ruleName = "Allow_" + hostPort;
-            context.logStatus("Creating Security rule for port " + hostPort + " with name:" + ruleName);
+            context.logStatus(Messages.EnablePortCommand_creatingRule(hostPort, ruleName));
 
             publicGroup.update()
                     .defineRule(ruleName)
@@ -111,7 +113,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                     .toAnyAddress()
                     .toPort(hostPort)
                     .withAnyProtocol()
-                    .withDescription("Allow traffic from the Internet to Public Agents port " + hostPort)
+                    .withDescription(Messages.EnablePortCommand_allowTraffic(hostPort))
                     .withPriority(maxPrio)
                     .attach()
                     .apply();
@@ -124,7 +126,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             throws InterruptedException, IOException, AzureCloudException {
 
         PagedList<LoadBalancer> loadBalancers = azureClient.loadBalancers().listByResourceGroup(resourceGroupName);
-        context.logStatus("Creating load balancer rule for port " + hostPort + " if needed.");
+        context.logStatus(Messages.EnablePortCommand_createLBIfNeeded(hostPort));
 
         boolean ruleFound = false;
         LoadBalancer foundLoadBalancer = null;
@@ -133,14 +135,14 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             if (balancer.name().startsWith("dcos-agent-lb-")) {
                 if (balancer.backends().size() != 1 ||
                         balancer.frontends().size() != 1) {
-                    context.logError("Balancer configuration from template not matching previous configuration.");
-                    throw new AzureCloudException("Balancer configuration from template not matching previous configuration.");
+                    context.logError(Messages.EnablePortCommand_missMatch());
+                    throw new AzureCloudException(Messages.EnablePortCommand_missMatch());
                 }
                 foundLoadBalancer = balancer;
 
                 for (LoadBalancingRule rule : balancer.loadBalancingRules().values()) {
                     if (rule.frontendPort() == hostPort) {
-                        context.logStatus("Load balancer rule for port " + hostPort + " found.");
+                        context.logStatus(Messages.EnablePortCommand_lbFound(hostPort));
                         ruleFound = true;
                         break OUTER;
                     }
@@ -149,13 +151,14 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         if (foundLoadBalancer == null) {
+            // TODO: create one
             return false;
         }
 
         if (!ruleFound) {
-            context.logStatus("Load balancer rule for port " + hostPort + " not found.");
+            context.logStatus(Messages.EnablePortCommand_lBNotFound(hostPort));
             String ruleName = "JLBRuleHttp" + hostPort;
-            context.logStatus("Creating load balancer rule for port " + hostPort + " with name:" + ruleName);
+            context.logStatus(Messages.EnablePortCommand_creatingLB(hostPort, ruleName));
 
             String probeName = "tcpProbe_" + hostPort;
 

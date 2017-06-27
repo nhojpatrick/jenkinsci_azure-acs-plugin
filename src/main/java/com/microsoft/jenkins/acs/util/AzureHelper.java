@@ -3,6 +3,7 @@ package com.microsoft.jenkins.acs.util;
 import com.microsoft.azure.credentials.AzureTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.Messages;
 import org.apache.commons.lang.StringUtils;
 
 /**
@@ -18,7 +19,7 @@ public final class AzureHelper {
     public static Azure buildClientFromCredentialsId(String azureCredentialsId) {
         AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
         if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
-            throw new IllegalArgumentException("No service principal found for credentials ID: " + azureCredentialsId);
+            throw new IllegalArgumentException(Messages.AzureHelper_servicePrincipalNotFound(azureCredentialsId));
         }
 
         return buildClientFromServicePrincipal(servicePrincipal);

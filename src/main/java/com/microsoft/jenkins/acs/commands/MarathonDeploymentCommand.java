@@ -8,6 +8,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.JSchException;
 import com.microsoft.jenkins.acs.JobContext;
+import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.JsonHelper;
@@ -29,7 +30,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         try {
             FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePath);
             if (configPaths == null || configPaths.length == 0) {
-                context.logError("No configuration found at: " + relativeFilePath);
+                context.logError(Messages.MarathonDeploymentCommand_configNotFoundAt(relativeFilePath));
                 context.setDeploymentState(DeploymentState.HasError);
                 return;
             }
@@ -38,16 +39,16 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
             for (FilePath configPath : configPaths) {
                 String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
-                context.logStatus(String.format("Copying marathon config file `%s' to remote: %s:%s", configPath.toURI(), client.getHost(), deployedFilename));
+                context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(configPath.toURI(), client.getHost(), deployedFilename));
                 client.copyTo(
                         jobContext.replaceMacro(configPath.read(), context.isEnableConfigSubstitution()),
                         deployedFilename);
 
                 String appId = JsonHelper.getId(configPath.read());
                 //ignore if app does not exist
-                context.logStatus(String.format("Deleting application with appId: '%s' if it exists", appId));
+                context.logStatus(Messages.MarathonDeploymentCommand_deletingApp(appId));
                 client.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);
-                context.logStatus(String.format("Deploying file '%s' with appId %s to marathon.", deployedFilename, appId));
+                context.logStatus(Messages.MarathonDeploymentCommand_deployingApp(deployedFilename, appId));
                 // NB. about "?force=true"
                 // Sometimes the deployment gets rejected after the previous delete of the same application ID
                 // with the following message:
@@ -56,12 +57,12 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
                 client.execRemote("curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps?force=true");
 
-                context.logStatus("Remove temporary remote config file: " + deployedFilename);
+                context.logStatus(Messages.MarathonDeploymentCommand_removeTempFile(deployedFilename));
                 client.execRemote("rm -f " + deployedFilename);
             }
             context.setDeploymentState(DeploymentState.Success);
         } catch (JSchException | IOException | InterruptedException e) {
-            context.logError("Error deploying application to marathon:", e);
+            context.logError(Messages.MarathonDeploymentCommand_errorDeploying(), e);
             context.setDeploymentState(DeploymentState.UnSuccessful);
         } finally {
             if (client != null) {

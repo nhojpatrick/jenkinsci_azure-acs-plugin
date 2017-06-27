@@ -49,8 +49,11 @@ public class JobContext {
     public EnvVars envVars() {
         try {
             return getRun().getEnvironment(getTaskListener());
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException("Failed to get Job environment variables", e);
+        } catch (IOException e) {
+            throw new RuntimeException(Messages.JobContext_failedToGetEnv(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(Messages.JobContext_failedToGetEnv(), e);
         }
     }
 
@@ -72,7 +75,7 @@ public class JobContext {
                 content = Util.replaceMacro(content, envVars());
                 return new ByteArrayInputStream(content.getBytes());
             } else {
-                throw new IllegalArgumentException("null content returned");
+                throw new IllegalArgumentException(Messages.JobContext_nullContent());
             }
         } finally {
             original.close();

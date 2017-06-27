@@ -12,7 +12,6 @@ import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import com.microsoft.azure.PagedList;
-import com.microsoft.azure.credentials.AzureTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
@@ -30,7 +29,6 @@ import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
-import com.microsoft.jenkins.acs.util.DependencyMigration;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import hudson.Extension;
 import hudson.FilePath;
@@ -232,10 +230,10 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     public static String getContainerServiceName(String containerService) {
         if (StringUtils.isBlank(containerService)) {
-            throw new IllegalArgumentException("Blank container service");
+            throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankContainerService());
         }
         String[] part = containerService.split("\\|");
-        return part[0];
+        return part[0].trim();
     }
 
     public static String getOrchestratorType(String containerService) {
@@ -243,7 +241,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return null;
         }
         String[] parts = containerService.split("\\|");
-        return parts.length == 2 ? parts[1] : null;
+        return parts.length == 2 ? parts[1].trim() : null;
     }
 
     public static String validate(
@@ -304,7 +302,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 );
             }
             StandardListBoxModel model = new StandardListBoxModel();
-            model.add("--- Select Azure Credentials ---", Constants.INVALID_OPTION);
+            model.add(Messages.ACSDeploymentContext_selectAzureCredentials(), Constants.INVALID_OPTION);
             model.withAll(credentials);
             return model;
         }
@@ -366,14 +364,14 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
             if (StringUtils.isBlank(azureCredentialsId)
                     || Constants.INVALID_OPTION.equals(azureCredentialsId)) {
-                model.add("--- select credentials first ---", Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_selectAzureCredentialsFirst(), Constants.INVALID_OPTION);
                 return model;
             }
 
             try {
                 AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
                 if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
-                    model.add("--- select credentials first ---", Constants.INVALID_OPTION);
+                    model.add(Messages.ACSDeploymentContext_selectAzureCredentialsFirst(), Constants.INVALID_OPTION);
                     return model;
                 }
 
@@ -382,11 +380,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     model.add(resourceGroup.name());
                 }
             } catch (Exception ex) {
-                model.add(String.format("*** Failed to load resource groups: %s ***", ex.getMessage()), Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_failedToLoadResourceGroups(ex.getMessage()), Constants.INVALID_OPTION);
             }
 
             if (model.isEmpty()) {
-                model.add("--- No resource groups found ---", Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_noResourceGroupFound(), Constants.INVALID_OPTION);
             }
 
             return model;
@@ -401,7 +399,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     || Constants.INVALID_OPTION.equals(azureCredentialsId)
                     || StringUtils.isBlank(resourceGroupName)
                     || Constants.INVALID_OPTION.equals(resourceGroupName)) {
-                model.add("--- select credentials & resource group first ---", Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(), Constants.INVALID_OPTION);
                 return model;
             }
 
@@ -409,7 +407,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 AzureCredentials.ServicePrincipal servicePrincipal =
                         AzureCredentials.getServicePrincipal(azureCredentialsId);
                 if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
-                    model.add("--- select credentials & resource group first ---", Constants.INVALID_OPTION);
+                    model.add(Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(), Constants.INVALID_OPTION);
                     return model;
                 }
 
@@ -421,19 +419,19 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
                     if (orchestratorType == ContainerServiceOchestratorTypes.DCOS ||
                             orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
-                        String name = String.format("%s (%s)",
+                        String name = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
-                        String value = String.format("%s|%s",
+                        String value = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
                         model.add(name, value);
                     }
                 }
             } catch (Exception ex) {
-                model.add(String.format("*** Failed to load resource groups: %s ***", ex.getMessage()), Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_failedToLoadContainerServices(ex.getMessage()), Constants.INVALID_OPTION);
             }
 
             if (model.isEmpty()) {
-                model.add("--- No resource groups found ---", Constants.INVALID_OPTION);
+                model.add(Messages.ACSDeploymentContext_noContainerServiceFound(), Constants.INVALID_OPTION);
             }
 
             return model;
@@ -441,7 +439,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
         public FormValidation doCheckConfigFilePaths(@QueryParameter String value) {
             if (value == null || value.length() == 0) {
-                return FormValidation.error("Config file path(s) is required.");
+                return FormValidation.error(Messages.ACSDeploymentContext_configFilePathsRequired());
             }
 
             return FormValidation.ok();

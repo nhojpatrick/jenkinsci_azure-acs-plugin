@@ -1,11 +1,8 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
-
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Makes decision on which deployment method to be used based on the configuration.
@@ -17,11 +14,11 @@ public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand
     public void execute(IDeploymentChoiceCommandData context) {
         ContainerServiceOchestratorTypes type = context.getOrchestratorType();
         if (type == null) {
-            context.logError("Container service's orchestrator type was not found");
+            context.logError(Messages.DeploymentChoiceCommand_orchestratorNotFound());
             return;
         }
         if (!Constants.SUPPORTED_ORCHESTRATOR.contains(type)) {
-            context.logError("Deployment of container service with orchestrator type " + type + " is not supported");
+            context.logError(Messages.DeploymentChoiceCommand_orchestratorNotSupported(type));
             return;
         }
         this.orchestratorType = type;
@@ -36,7 +33,7 @@ public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand
             case DCOS:
                 return MarathonDeploymentCommand.class;
             default:
-                throw new IllegalStateException("Unsupported container service orchestrator type: " + orchestratorType);
+                throw new IllegalStateException(Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
         }
     }
 

@@ -7,6 +7,7 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
+import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import hudson.util.Secret;
 import org.apache.commons.lang3.StringUtils;
@@ -69,12 +70,12 @@ public class JSchClient {
             this.session.setConfig(config);
             this.session.connect();
         } catch (JSchException | UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("Failed to create SSH session", e);
+            throw new IllegalArgumentException(Messages.JSchClient_failedToCreateSession(), e);
         }
     }
 
     public void copyTo(final File sourceFile, final String remotePath) throws JSchException {
-        log(String.format("copy file %s to %s:%s", sourceFile, host, remotePath));
+        log(Messages.JSchClient_copyFileTo(sourceFile, host, remotePath));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
             public void apply(ChannelSftp channel) throws JSchException, SftpException {
@@ -101,7 +102,7 @@ public class JSchClient {
     }
 
     public void copyFrom(final String remotePath, final File destFile) throws JSchException {
-        log(String.format("copy file %s:%s to %s", host, remotePath, destFile));
+        log(Messages.JSchClient_copyFileFrom(host, remotePath, destFile));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
             public void apply(ChannelSftp channel) throws JSchException, SftpException {
@@ -119,7 +120,7 @@ public class JSchClient {
         });
     }
 
-    private void withChannelSftp(ChannelSftpConsumer consumer) throws JSchException {
+    public void withChannelSftp(ChannelSftpConsumer consumer) throws JSchException {
         ChannelSftp channel = null;
         try {
             channel = (ChannelSftp) session.openChannel("sftp");
@@ -127,7 +128,7 @@ public class JSchClient {
             try {
                 consumer.apply(channel);
             } catch (SftpException e) {
-                throw new JSchException("sftp error", e);
+                throw new JSchException(Messages.JSchClient_sftpError(), e);
             }
         } finally {
             if (channel != null) {
@@ -143,7 +144,7 @@ public class JSchClient {
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
 
-            log("==> exec: " + command);
+            log(Messages.JSchClient_execCommand(command));
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024];
 
@@ -164,17 +165,17 @@ public class JSchClient {
                     if (in.available() > 0) {
                         continue;
                     }
-                    log("<== command exit status: " + channel.getExitStatus());
+                    log(Messages.JSchClient_commandExitStatus(channel.getExitStatus()));
                     if (channel.getExitStatus() < 0) {
-                        throw new RuntimeException("Error executing SSH command: " + channel.getExitStatus());
+                        throw new RuntimeException(Messages.JSchClient_errorExecution(channel.getExitStatus()));
                     }
                     break;
                 }
             }
             String serverOutput = output.toString(Constants.DEFAULT_CHARSET);
-            log("<== " + serverOutput);
+            log(Messages.JSchClient_output(serverOutput));
         } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("Failed to execute command", e);
+            throw new IllegalArgumentException(Messages.JSchClient_failedExecution(), e);
         } finally {
             if (channel != null) {
                 channel.disconnect();
