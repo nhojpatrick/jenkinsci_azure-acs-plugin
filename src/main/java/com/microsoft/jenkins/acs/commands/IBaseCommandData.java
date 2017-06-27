@@ -6,7 +6,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.Azure;
-import hudson.EnvVars;
+import com.microsoft.jenkins.acs.JobContext;
 
 public interface IBaseCommandData {
     void logError(String message);
@@ -19,7 +19,7 @@ public interface IBaseCommandData {
 
     void setDeploymentState(DeploymentState deployState);
 
-    EnvVars getEnvVars();
+    JobContext jobContext();
 
     DeploymentState getDeploymentState();
 

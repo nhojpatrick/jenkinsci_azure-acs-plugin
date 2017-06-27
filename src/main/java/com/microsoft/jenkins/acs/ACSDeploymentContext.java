@@ -30,7 +30,6 @@ import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DependencyMigration;
-import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -49,7 +48,6 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
 import javax.annotation.Nonnull;
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Hashtable;
@@ -76,7 +74,6 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private transient String linuxAdminUsername;
     private transient ContainerServiceOchestratorTypes orchestratorType;
     private transient SSHUserPrivateKey sshCredentials;
-    private transient EnvVars envVars;
 
     @DataBoundConstructor
     public ACSDeploymentContext(
@@ -182,19 +179,12 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return enableConfigSubstitution;
     }
 
-    @Override
-    public EnvVars getEnvVars() {
-        return envVars;
-    }
-
     public void configure(
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
             @Nonnull final TaskListener listener) throws IOException, InterruptedException, AzureCloudException {
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
-
-        this.envVars = run.getEnvironment(listener);
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
         commands.put(GetContainserServiceInfoCommand.class, new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
@@ -207,7 +197,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
         commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-        super.configure(run, workspace, launcher, listener, commands, GetContainserServiceInfoCommand.class);
+        super.configure(new JobContext(run, workspace, launcher, listener), commands, GetContainserServiceInfoCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 

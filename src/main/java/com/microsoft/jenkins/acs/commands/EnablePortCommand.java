@@ -33,7 +33,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
-            FilePath[] configPaths = context.getWorkspace().list(relativeFilePaths);
+            FilePath[] configPaths = context.jobContext().getWorkspace().list(relativeFilePaths);
             if (configPaths == null || configPaths.length == 0) {
                 context.logError("No configuration found at: " + relativeFilePaths);
                 context.setDeploymentState(DeploymentState.UnSuccessful);
@@ -189,7 +189,5 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         String getConfigFilePaths();
 
         ContainerServiceOchestratorTypes getOrchestratorType();
-
-        FilePath getWorkspace();
     }
 }

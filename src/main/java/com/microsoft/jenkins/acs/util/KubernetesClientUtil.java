@@ -1,19 +1,16 @@
 package com.microsoft.jenkins.acs.util;
 
+import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import hudson.EnvVars;
 import hudson.FilePath;
-import hudson.Launcher;
 import hudson.Util;
-import hudson.model.Run;
-import hudson.model.TaskListener;
 import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.extensions.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.apache.commons.io.IOUtils;
 
-import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,28 +28,22 @@ public final class KubernetesClientUtil {
     /**
      * Apply Kubernetes configurations through the given Kubernetes client.
      *
-     * @param run             Jenkins Run object
-     * @param workspace       Jenkins workspace path
-     * @param launcher        Jenkins launcher
-     * @param listener        Jenkins task listener
+     * @param jobContext      The Jenkins job context
      * @param client          The Kubernetes client that talks to the remote Kubernetes API service
      * @param namespace       The namespace that the components should be created / updated
      * @param configFilePaths The configuration paths in Ant path glob format
      */
     public static void apply(
-            @Nonnull final Run<?, ?> run,
-            @Nonnull final FilePath workspace,
-            @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener,
+            final JobContext jobContext,
             final KubernetesClient client,
             final String namespace,
             final String configFilePaths,
             final boolean enableConfigSubstitution) throws IOException, InterruptedException {
 
-        final EnvVars envVars = run.getEnvironment(listener);
-        final PrintStream logger = listener.getLogger();
+        final EnvVars envVars = jobContext.envVars();
+        final PrintStream logger = jobContext.logger();
 
-        FilePath workspacePath = new FilePath(launcher.getChannel(), workspace.getRemote());
+        FilePath workspacePath = jobContext.workspacePath();
         String[] pathPatterns = configFilePaths.split(FP_SEPARATOR);
 
         for (String pathPattern : pathPatterns) {

@@ -6,16 +6,13 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.KubernetesClientUtil;
 import hudson.EnvVars;
-import hudson.FilePath;
-import hudson.Launcher;
 import hudson.Util;
-import hudson.model.Result;
-import hudson.model.Run;
 import hudson.model.TaskListener;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -30,11 +27,9 @@ import java.io.File;
 public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymentCommand.IKubernetesDeploymentCommandData> {
     @Override
     public void execute(IKubernetesDeploymentCommandData context) {
-        final EnvVars envVars = context.getEnvVars();
-        final Run<?, ?> run = context.getRun();
-        final FilePath workspace = context.getWorkspace();
-        final Launcher launcher = context.getLauncher();
-        final TaskListener listener = context.getListener();
+        final JobContext jobContext = context.jobContext();
+        final EnvVars envVars = jobContext.envVars();
+        final TaskListener listener = jobContext.getTaskListener();
 
         SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         String kubernetesNamespaceCfg = Util.replaceMacro(context.getKubernetesNamespace(), envVars).trim();
@@ -42,7 +37,7 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
 
         if (StringUtils.isBlank(configFilePathsCfg)) {
             context.logStatus(Messages.KubernetesDeploymentCommand_configFilesNotSpecified());
-            run.setResult(Result.UNSTABLE);
+            context.setDeploymentState(DeploymentState.HasError);
             return;
         }
 
@@ -57,17 +52,16 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
             Config config = kubeConfigFromFile(kubeconfigFile);
 
             KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
-            KubernetesClientUtil.apply(
-                    run, workspace, launcher, listener, kubernetesClient, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
+            KubernetesClientUtil.apply(jobContext, kubernetesClient, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
         } catch (Exception e) {
             e.printStackTrace(listener.error(Messages.KubernetesDeploymentCommand_unexpectedError()));
-            run.setResult(Result.FAILURE);
+            context.setDeploymentState(DeploymentState.HasError);
         } finally {
             if (kubeconfigFile != null) {
-                listener.getLogger().println(
+                context.logStatus(
                         Messages.KubernetesDeploymentCommand_deleteConfigFile(kubeconfigFile.getAbsolutePath()));
                 if (!kubeconfigFile.delete()) {
-                    listener.getLogger().println(
+                    context.logStatus(
                             Messages.KubernetesDeploymentCommand_failedToDeleteFile(kubeconfigFile.getAbsolutePath()));
                 }
             }
@@ -84,14 +78,6 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
     }
 
     public interface IKubernetesDeploymentCommandData extends IBaseCommandData {
-        Run<?, ?> getRun();
-
-        FilePath getWorkspace();
-
-        Launcher getLauncher();
-
-        TaskListener getListener();
-
         String getMgmtFQDN();
 
         String getLinuxAdminUsername();

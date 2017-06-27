@@ -26,7 +26,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         JSchClient client = null;
         try {
-            FilePath[] configPaths = context.getWorkspace().list(relativeFilePath);
+            FilePath[] configPaths = context.jobContext().getWorkspace().list(relativeFilePath);
             if (configPaths == null || configPaths.length == 0) {
                 context.logError("No configuration found at: " + relativeFilePath);
                 context.setDeploymentState(DeploymentState.UnSuccessful);
@@ -66,7 +66,5 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         SSHUserPrivateKey getSshCredentials();
 
         String getConfigFilePaths();
-
-        FilePath getWorkspace();
     }
 }
