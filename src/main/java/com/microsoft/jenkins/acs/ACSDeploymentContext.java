@@ -203,7 +203,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
         // DeploymentChoiceCommand will point out the next step through INextCommandAware
         commands.put(DeploymentChoiceCommand.class, new TransitionInfo(new DeploymentChoiceCommand(), null, null));
 
+        // ACS with Kubernetes will add a security rule for the service port automatically, so no need to manually create one to enable the port access
         commands.put(KubernetesDeploymentCommand.class, new TransitionInfo(new KubernetesDeploymentCommand(), null, null));
+
         commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
         super.configure(run, workspace, launcher, listener, commands, GetContainserServiceInfoCommand.class);

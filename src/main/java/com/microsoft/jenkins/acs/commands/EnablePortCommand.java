@@ -96,7 +96,6 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 throw new AzureCloudException("Exceeded max priority for inbound security rules.");
             }
 
-            maxPrio = maxPrio + 10;
             String ruleName = "Allow_" + hostPort;
             context.logStatus("Creating Security rule for port " + hostPort + " with name:" + ruleName);
 
@@ -108,7 +107,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                     .toAnyAddress()
                     .toPort(hostPort)
                     .withAnyProtocol()
-                    .withDescription("Allow HTTP traffic from the Internet to Public Agents")
+                    .withDescription("Allow traffic from the Internet to Public Agents port " + hostPort)
                     .withPriority(maxPrio)
                     .attach()
                     .apply();
@@ -127,10 +126,9 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         LoadBalancer foundLoadBalancer = null;
         OUTER:
         for (LoadBalancer balancer : loadBalancers) {
-            // TODO: check the logic here
             if (balancer.name().startsWith("dcos-agent-lb-")) {
-                if (balancer.inner().backendAddressPools().size() != 1 ||
-                        balancer.inner().frontendIPConfigurations().size() != 1) {
+                if (balancer.backends().size() != 1 ||
+                        balancer.frontends().size() != 1) {
                     context.logError("Balancer configuration from template not matching previous configuration.");
                     throw new AzureCloudException("Balancer configuration from template not matching previous configuration.");
                 }
