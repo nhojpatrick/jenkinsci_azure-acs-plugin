@@ -15,6 +15,7 @@ import com.microsoft.azure.management.network.NetworkSecurityRule;
 import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
+import hudson.FilePath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ import java.util.Map;
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
     @Override
     public void execute(IEnablePortCommandData context) {
-        String marathonConfigFile = context.getConfigFilePaths();
+        String relativeFilePaths = context.getConfigFilePaths();
         if (context.getOrchestratorType() != ContainerServiceOchestratorTypes.DCOS) {
             context.setDeploymentState(DeploymentState.Success);
             return;
@@ -32,18 +33,27 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
-            ArrayList<Integer> hostPorts =
-                    JsonHelper.getHostPorts(marathonConfigFile);
-            context.logStatus("Enabling ports");
-            for (Integer hPort : hostPorts) {
-                boolean retVal = createSecurityGroup(context, azureClient, resourceGroupName, hPort);
-                if (retVal) {
-                    retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
-                    if (!retVal) {
+            FilePath[] configPaths = context.getWorkspace().list(relativeFilePaths);
+            if (configPaths == null || configPaths.length == 0) {
+                context.logError("No configuration found at: " + relativeFilePaths);
+                context.setDeploymentState(DeploymentState.UnSuccessful);
+                return;
+            }
+
+            for (FilePath configPath : configPaths) {
+                ArrayList<Integer> hostPorts =
+                        JsonHelper.getHostPorts(configPath.getRemote());
+                context.logStatus("Enabling ports");
+                for (Integer hPort : hostPorts) {
+                    boolean retVal = createSecurityGroup(context, azureClient, resourceGroupName, hPort);
+                    if (retVal) {
+                        retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
+                        if (!retVal) {
+                            throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
+                        }
+                    } else {
                         throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
                     }
-                } else {
-                    throw new AzureCloudException("Error enabling port:" + hPort + ".  Unknown status of other ports.");
                 }
             }
 
@@ -179,5 +189,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         String getConfigFilePaths();
 
         ContainerServiceOchestratorTypes getOrchestratorType();
+
+        FilePath getWorkspace();
     }
 }

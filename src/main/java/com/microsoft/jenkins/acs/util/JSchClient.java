@@ -139,7 +139,6 @@ public class JSchClient {
                         throw new RuntimeException("Error building or running docker image. Process exected with status: " +
                                 channel.getExitStatus());
                     }
-                    System.out.println("exit-status: " + channel.getExitStatus());
                     break;
                 }
             }

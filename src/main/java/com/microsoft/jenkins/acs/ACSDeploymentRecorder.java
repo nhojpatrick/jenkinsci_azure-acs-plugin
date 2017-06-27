@@ -78,8 +78,6 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
         } catch (AzureCloudException ace) {
             listener.error("Error configuring deployment context: " + ace.getMessage(), ace);
             run.setResult(Result.FAILURE);
-        } finally {
-            this.context.cleanupConfigFile();
         }
     }
 

@@ -75,7 +75,6 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private transient String mgmtFQDN;
     private transient String linuxAdminUsername;
     private transient ContainerServiceOchestratorTypes orchestratorType;
-    private transient File localMarathonConfigFile;
     private transient SSHUserPrivateKey sshCredentials;
     private transient EnvVars envVars;
 
@@ -210,15 +209,6 @@ public class ACSDeploymentContext extends AbstractBaseContext
         commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
         super.configure(run, workspace, launcher, listener, commands, GetContainserServiceInfoCommand.class);
         this.setDeploymentState(DeploymentState.Running);
-    }
-
-    public void cleanupConfigFile() {
-        if (this.localMarathonConfigFile != null) {
-            boolean ret = this.localMarathonConfigFile.delete();
-            if (!ret) {
-                logStatus("Cannot delete temporary Marathon configuration file: " + this.localMarathonConfigFile.getAbsolutePath());
-            }
-        }
     }
 
     private static SSHUserPrivateKey getSshCredentials(final String id) {
