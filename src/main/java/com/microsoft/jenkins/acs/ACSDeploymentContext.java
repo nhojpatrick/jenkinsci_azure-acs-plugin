@@ -5,8 +5,9 @@
  */
 package com.microsoft.jenkins.acs;
 
-import java.util.Hashtable;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.microsoft.azure.management.Azure;
+import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
 import com.microsoft.jenkins.acs.commands.GetPublicFQDNCommand;
@@ -19,200 +20,215 @@ import com.microsoft.jenkins.acs.commands.TemplateMonitorCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.commands.ValidateContainerCommand;
 import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
-import com.microsoft.jenkins.acs.services.IAzureConnectionData;
-import com.microsoft.jenkins.acs.services.ServiceDelegateHelper;
-import org.apache.commons.lang.StringUtils;
 import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
 import com.microsoft.jenkins.acs.services.IARMTemplateServiceData;
-import org.kohsuke.stapler.DataBoundConstructor;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.microsoft.azure.management.network.NetworkResourceProviderClient;
-import com.microsoft.azure.management.resources.ResourceManagementClient;
-import com.microsoft.azure.management.resources.ResourceManagementService;
-
+import com.microsoft.jenkins.acs.util.DependencyMigration;
 import hudson.Extension;
-import hudson.model.BuildListener;
+import hudson.FilePath;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
+import hudson.model.TaskListener;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.DataBoundConstructor;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Hashtable;
 
 public class ACSDeploymentContext extends AbstractBaseContext
-	implements ResourceGroupCommand.IResourceGroupCommandData,
+        implements ResourceGroupCommand.IResourceGroupCommandData,
         ValidateContainerCommand.IValidateContainerCommandData,
         GetPublicFQDNCommand.IGetPublicFQDNCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         TemplateDeployCommand.ITemplateDeployCommandData,
         TemplateMonitorCommand.ITemplateMonitorCommandData,
-		IARMTemplateServiceData, 
-		Describable<ACSDeploymentContext> {
-	
-	private IAzureConnectionData connectData;
-	private ResourceManagementClient resourceClient;
-	private NetworkResourceProviderClient networkClient;
-	private String deploymentName;
-	private String mgmtFQDN;
-	private String dnsNamePrefix;
-	private String agentCount;
-	private String agentVMSize;
-	private String linuxAdminUsername; 
-	private String masterCount;
-	private String sshRSAPublicKey;
-	private String marathonConfigFile;
-	private String sshKeyFilePassword;
-	private String sshKeyFileLocation;
+        IARMTemplateServiceData,
+        Describable<ACSDeploymentContext> {
+
+    private transient AzureCredentials.ServicePrincipal servicePrincipal;
+    private Azure azureClient;
+    private String deploymentName;
+    private String mgmtFQDN;
+    private String dnsNamePrefix;
+    private String agentCount;
+    private String agentVMSize;
+    private String linuxAdminUsername;
+    private String masterCount;
+    private String sshRSAPublicKey;
+    private String marathonConfigFile;
+    private String sshKeyFilePassword;
+    private String sshKeyFileLocation;
     private String location;
     private String orchestratorType;
-    
+
+    private transient File localMarathonConfigFile;
+
     private static final String EMBEDDED_TEMPLATE_FILENAME = "/templateValue.json";
 
     public ACSDeploymentContext() {
-    	this.location = "West US";
+        this.location = "West US";
     }
-    
+
     @DataBoundConstructor
-	public ACSDeploymentContext(
+    public ACSDeploymentContext(
             final String dnsNamePrefix,
             final String agentCount,
-            final String agentVMSize, 
-            final String linuxAdminUsername, 
+            final String agentVMSize,
+            final String linuxAdminUsername,
             final String masterCount,
             final String sshRSAPublicKey,
             final String marathonConfigFile,
             final String sshKeyFilePassword,
             final String sshKeyFileLocation,
             final String location) {
-	    this.dnsNamePrefix = dnsNamePrefix;
-	    this.agentCount = agentCount;
-	    this.agentVMSize = agentVMSize; 
-	    this.linuxAdminUsername = linuxAdminUsername; 
-	    this.orchestratorType = "DCOS";
-	    this.masterCount = masterCount;
-	    this.sshRSAPublicKey = sshRSAPublicKey;
-	    this.marathonConfigFile = marathonConfigFile;
-	    this.sshKeyFilePassword = sshKeyFilePassword;
+        this.dnsNamePrefix = dnsNamePrefix;
+        this.agentCount = agentCount;
+        this.agentVMSize = agentVMSize;
+        this.linuxAdminUsername = linuxAdminUsername;
+        this.orchestratorType = "DCOS";
+        this.masterCount = masterCount;
+        this.sshRSAPublicKey = sshRSAPublicKey;
+        this.marathonConfigFile = marathonConfigFile;
+        this.sshKeyFilePassword = sshKeyFilePassword;
         this.sshKeyFileLocation = sshKeyFileLocation;
         this.location = location;
-	}
-	
-    @SuppressWarnings("unchecked")
-	@Override
-    public Descriptor<ACSDeploymentContext>  getDescriptor() {
-    	return Jenkins.getInstance().getDescriptor(getClass());
     }
 
-	public String getDnsNamePrefix() {
-		return this.dnsNamePrefix;
-	}
-	
-	public String getAgentCount() {
-		return this.agentCount;
-	}
-    
-	public String getAgentVMSize() { 
-    	return this.agentVMSize; 
+    @Override
+    public Descriptor<ACSDeploymentContext> getDescriptor() {
+        return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
     }
-    
-    public String getLinuxAdminUsername() { 
-    	return this.linuxAdminUsername; 
+
+    @Override
+    public String getDnsNamePrefix() {
+        return this.dnsNamePrefix;
     }
-    
+
+    public String getAgentCount() {
+        return this.agentCount;
+    }
+
+    public String getAgentVMSize() {
+        return this.agentVMSize;
+    }
+
+    @Override
+    public String getLinuxAdminUsername() {
+        return this.linuxAdminUsername;
+    }
+
     public String getOrchestratorType() {
-    	return this.orchestratorType;
+        return this.orchestratorType;
     }
-    
+
     public String getMasterCount() {
-    	return this.masterCount;
-    }
-    
-    public String getSshRSAPublicKey() { 
-    	return this.sshRSAPublicKey; 
-    }
-    
-    public String getMarathonConfigFile() { 
-    	return this.marathonConfigFile; 
+        return this.masterCount;
     }
 
-    public String getSshKeyFileLocation() { 
-    	return this.sshKeyFileLocation; 
+    public String getSshRSAPublicKey() {
+        return this.sshRSAPublicKey;
     }
 
-    public String getSshKeyFilePassword() { 
-    	return this.sshKeyFilePassword; 
+    @Override
+    public String getMarathonConfigFile() {
+        return this.marathonConfigFile;
     }
 
+    @Override
+    public String getSshKeyFileLocation() {
+        return this.sshKeyFileLocation;
+    }
+
+    @Override
+    public String getSshKeyFilePassword() {
+        return this.sshKeyFilePassword;
+    }
+
+    @Override
     public String getLocation() {
-    	return this.location;
-    }    
-	
-	public void setDeploymentName(String deploymentName) {
-		this.deploymentName = deploymentName;
-	}
-	
-	public void setMgmtFQDN(String mgmtFQDN) {
-		this.mgmtFQDN = mgmtFQDN;
-	}
+        return this.location;
+    }
 
-	public String getResourceGroupName() {
-		return this.dnsNamePrefix;
-	}
+    @Override
+    public void setDeploymentName(String deploymentName) {
+        this.deploymentName = deploymentName;
+    }
 
-	public String getDeploymentName() {
-		return this.deploymentName;
-	}
-	
-	public String getMgmtFQDN() {
-		return this.mgmtFQDN;
-	}
-	
-	@Override
-	public IBaseCommandData getDataForCommand(ICommand command) {
-		return this;
-	}
+    @Override
+    public void setMgmtFQDN(String mgmtFQDN) {
+        this.mgmtFQDN = mgmtFQDN;
+    }
 
-	public ResourceManagementClient getResourceClient() {
-		return this.resourceClient;
-	}
-	
-	public NetworkResourceProviderClient getNetworkClient() {
-		return this.networkClient;
-	}
-	
-	public void configure(BuildListener listener, IAzureConnectionData connectData) throws AzureCloudException {
-		this.connectData = connectData;
-		this.resourceClient = ResourceManagementService.create(
-				ServiceDelegateHelper.load(connectData));
-		this.networkClient = ServiceDelegateHelper.getNetworkManagementClient(
-				ServiceDelegateHelper.load(connectData));
-		
-		Hashtable<Class, TransitionInfo> commands = new Hashtable<Class, TransitionInfo>();
-		commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));		
-		commands.put(ValidateContainerCommand.class, new TransitionInfo(new ValidateContainerCommand(), GetPublicFQDNCommand.class, TemplateDeployCommand.class));
-		commands.put(TemplateDeployCommand.class, new TransitionInfo(new TemplateDeployCommand(), TemplateMonitorCommand.class, null));
-		commands.put(TemplateMonitorCommand.class, new TransitionInfo(new TemplateMonitorCommand(), GetPublicFQDNCommand.class, null));
-		commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), MarathonDeploymentCommand.class, null));
-		commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
-		commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-		super.configure(listener, commands, ResourceGroupCommand.class);
-		this.setDeploymentState(DeploymentState.Running);
-	}
+    @Override
+    public String getResourceGroupName() {
+        return this.dnsNamePrefix;
+    }
 
-	@Override
-	public String getEmbeddedTemplateName() {
-		return EMBEDDED_TEMPLATE_FILENAME;
-	}
+    @Override
+    public String getDeploymentName() {
+        return this.deploymentName;
+    }
 
-	@Override
-	public void configureTemplate(JsonNode tmp) throws IllegalAccessException, AzureCloudException {
+    @Override
+    public String getMgmtFQDN() {
+        return this.mgmtFQDN;
+    }
+
+    @Override
+    public IBaseCommandData getDataForCommand(ICommand command) {
+        return this;
+    }
+
+    @Override
+    public Azure getAzureClient() {
+        return this.azureClient;
+    }
+
+    public void configure(TaskListener listener, FilePath workspacePath, AzureCredentials.ServicePrincipal servicePrincipal) throws IOException, InterruptedException, AzureCloudException {
+        this.servicePrincipal = servicePrincipal;
+        this.azureClient = Azure.authenticate(DependencyMigration.buildAzureTokenCredentials(servicePrincipal)).withSubscription(servicePrincipal.getSubscriptionId());
+
+        Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
+        commands.put(ResourceGroupCommand.class, new TransitionInfo(new ResourceGroupCommand(), ValidateContainerCommand.class, null));
+        commands.put(ValidateContainerCommand.class, new TransitionInfo(new ValidateContainerCommand(), GetPublicFQDNCommand.class, TemplateDeployCommand.class));
+        commands.put(TemplateDeployCommand.class, new TransitionInfo(new TemplateDeployCommand(), TemplateMonitorCommand.class, null));
+        commands.put(TemplateMonitorCommand.class, new TransitionInfo(new TemplateMonitorCommand(), GetPublicFQDNCommand.class, null));
+        commands.put(GetPublicFQDNCommand.class, new TransitionInfo(new GetPublicFQDNCommand(), MarathonDeploymentCommand.class, null));
+        commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
+        commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
+        super.configure(listener, commands, ResourceGroupCommand.class);
+        this.setDeploymentState(DeploymentState.Running);
+    }
+
+    public void cleanupConfigFile() {
+        if (this.localMarathonConfigFile != null) {
+            boolean ret = this.localMarathonConfigFile.delete();
+            if (!ret) {
+                logStatus("Cannot delete temporary Marathon configuration file: " + this.localMarathonConfigFile.getAbsolutePath());
+            }
+        }
+    }
+
+    @Override
+    public String getEmbeddedTemplateName() {
+        return EMBEDDED_TEMPLATE_FILENAME;
+    }
+
+    @Override
+    public void configureTemplate(JsonNode tmp) throws IllegalAccessException, AzureCloudException {
         if (StringUtils.isBlank(this.getDnsNamePrefix())) {
             throw new AzureCloudException(
                     String.format("Invalid DNS name prefix '%s'", this.dnsNamePrefix));
         }
 
         AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.dnsNamePrefix, "dnsNamePrefix",
-        		String.format("Invalid DNS name prefix '%s'", this.getDnsNamePrefix()),
-        		tmp);
+                String.format("Invalid DNS name prefix '%s'", this.getDnsNamePrefix()),
+                tmp);
         AzureManagementServiceDelegate.validateAndAddFieldValue("int", this.agentCount, "agentCount", null, tmp);
         AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.agentVMSize, "agentVMSize", null, tmp);
         AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.linuxAdminUsername, "linuxAdminUsername", null, tmp);
@@ -221,16 +237,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
         AzureManagementServiceDelegate.validateAndAddFieldValue("string", this.sshRSAPublicKey, "sshRSAPublicKey", null, tmp);
     }
 
-	@Override
-	public IARMTemplateServiceData getArmTemplateServiceData() {
-		return this;
-	}
+    @Override
+    public IARMTemplateServiceData getArmTemplateServiceData() {
+        return this;
+    }
 
-	@Override
-	public IAzureConnectionData getAzureConnectionData() {
-		return this.connectData;
-	}
-	
     @Extension
     public static final class DescriptorImpl extends ACSDeploymentContextDescriptor {
     }

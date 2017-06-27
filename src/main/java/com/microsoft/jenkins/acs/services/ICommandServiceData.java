@@ -5,14 +5,16 @@
  */
 package com.microsoft.jenkins.acs.services;
 
-import java.util.Hashtable;
-
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 
+import java.util.Hashtable;
+
 public interface ICommandServiceData {
-	public Class getStartCommandClass();
-	public Hashtable<Class, TransitionInfo> getCommands(); 
-	public IBaseCommandData getDataForCommand(ICommand command);
+    Class getStartCommandClass();
+
+    Hashtable<Class, TransitionInfo> getCommands();
+
+    IBaseCommandData getDataForCommand(ICommand command);
 }

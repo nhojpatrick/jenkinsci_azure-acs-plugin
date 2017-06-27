@@ -6,10 +6,10 @@
 package com.microsoft.jenkins.acs.commands;
 
 public enum DeploymentState {
-	Unknown,
-	Done,
-	HasError,
-	Running,
-	Success,
-	UnSuccessful,
+    Unknown,
+    Done,
+    HasError,
+    Running,
+    Success,
+    UnSuccessful,
 }

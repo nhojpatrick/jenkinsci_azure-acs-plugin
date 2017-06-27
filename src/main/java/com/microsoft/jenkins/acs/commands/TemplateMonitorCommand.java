@@ -5,29 +5,27 @@
  */
 package com.microsoft.jenkins.acs.commands;
 
+import com.microsoft.azure.management.resources.Deployments;
 import com.microsoft.jenkins.acs.services.AzureManagementServiceDelegate;
 
-import com.microsoft.azure.management.resources.ResourceManagementClient;
-
 public class TemplateMonitorCommand implements ICommand<TemplateMonitorCommand.ITemplateMonitorCommandData> {
-	public void execute(TemplateMonitorCommand.ITemplateMonitorCommandData context) {
-		String deploymentName = context.getDeploymentName();
-		String rcName  = context.getResourceGroupName(); 
-        ResourceManagementClient rmc = context.getResourceClient();
-    	boolean deploySuccess = AzureManagementServiceDelegate.monitor(rmc, rcName, deploymentName, context);
-        if(deploySuccess) {
-        	context.setDeploymentState(DeploymentState.Success);
-	        context.logStatus(
-	        		String.format("Azure '%s' deployed successfully.", deploymentName));
-        }else {
-	        context.logError(
-	        		String.format("Azure '%s' depoyment unsuccessfully.", deploymentName));
+    @Override
+    public void execute(TemplateMonitorCommand.ITemplateMonitorCommandData context) {
+        String deploymentName = context.getDeploymentName();
+        String resourceGroupName = context.getResourceGroupName();
+        Deployments deployments = context.getAzureClient().deployments();
+        boolean deploySuccess = AzureManagementServiceDelegate.monitor(deployments, resourceGroupName, deploymentName, context);
+        if (deploySuccess) {
+            context.setDeploymentState(DeploymentState.Success);
+            context.logStatus(
+                    String.format("Azure '%s' deployed successfully.", deploymentName));
+        } else {
+            context.logError(
+                    String.format("Azure '%s' depoyment unsuccessfully.", deploymentName));
         }
-	}
-	
-	public interface ITemplateMonitorCommandData extends IBaseCommandData {
-		public String getDeploymentName();
-		public String getResourceGroupName();
-		public ResourceManagementClient getResourceClient();
-	}
+    }
+
+    public interface ITemplateMonitorCommandData extends IBaseCommandData {
+        String getDeploymentName();
+    }
 }
