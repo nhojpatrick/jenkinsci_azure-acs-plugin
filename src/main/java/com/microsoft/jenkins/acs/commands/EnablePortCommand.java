@@ -33,17 +33,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
-            FilePath[] configPaths = context.jobContext().getWorkspace().list(relativeFilePaths);
-            if (configPaths == null || configPaths.length == 0) {
-                context.logError("No configuration found at: " + relativeFilePaths);
-                context.setDeploymentState(DeploymentState.UnSuccessful);
-                return;
-            }
+            FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePaths);
 
             for (FilePath configPath : configPaths) {
-                ArrayList<Integer> hostPorts =
-                        JsonHelper.getHostPorts(configPath.getRemote());
-                context.logStatus("Enabling ports");
+                ArrayList<Integer> hostPorts = JsonHelper.getHostPorts(configPath.read());
+                context.logStatus("Enabling ports: " + hostPorts);
                 for (Integer hPort : hostPorts) {
                     boolean retVal = createSecurityGroup(context, azureClient, resourceGroupName, hPort);
                     if (retVal) {

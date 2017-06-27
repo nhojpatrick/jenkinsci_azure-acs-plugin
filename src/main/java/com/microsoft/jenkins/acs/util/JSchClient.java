@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.Properties;
 
@@ -72,32 +73,61 @@ public class JSchClient {
         }
     }
 
-    public void copyTo(File sourceFile, String remotePath) throws JSchException {
-        ChannelSftp channel = null;
-        try {
-            channel = (ChannelSftp) session.openChannel("sftp");
-            channel.connect();
-            try {
+    public void copyTo(final File sourceFile, final String remotePath) throws JSchException {
+        context.logStatus(String.format("copy file %s to %s:%s", sourceFile, host, remotePath));
+        withChannelSftp(new ChannelSftpConsumer() {
+            @Override
+            public void apply(ChannelSftp channel) throws JSchException, SftpException {
                 channel.put(sourceFile.getAbsolutePath(), remotePath);
-            } catch (SftpException e) {
-                throw new JSchException(String.format("Error uploading file `%s'", sourceFile.getAbsolutePath()), e);
             }
+        });
+    }
+
+    public void copyTo(final InputStream in, final String remotePath) throws JSchException {
+        try {
+            withChannelSftp(new ChannelSftpConsumer() {
+                @Override
+                public void apply(ChannelSftp channel) throws JSchException, SftpException {
+                    channel.put(in, remotePath);
+                }
+            });
         } finally {
-            if (channel != null) {
-                channel.disconnect();
+            try {
+                in.close();
+            } catch (IOException e) {
+                context.logStatus("Failed to close input stream: " + e.getMessage());
             }
         }
     }
 
-    public void copyFrom(String remotePath, File destFile) throws JSchException {
+    public void copyFrom(final String remotePath, final File destFile) throws JSchException {
+        context.logStatus(String.format("copy file %s:%s to %s", host, remotePath, destFile));
+        withChannelSftp(new ChannelSftpConsumer() {
+            @Override
+            public void apply(ChannelSftp channel) throws JSchException, SftpException {
+                channel.get(remotePath, destFile.getAbsolutePath());
+            }
+        });
+    }
+
+    public void copyFrom(final String remotePath, final OutputStream out) throws JSchException {
+        withChannelSftp(new ChannelSftpConsumer() {
+            @Override
+            public void apply(ChannelSftp channel) throws JSchException, SftpException {
+                channel.get(remotePath, out);
+            }
+        });
+    }
+
+    private void withChannelSftp(ChannelSftpConsumer consumer) throws JSchException {
         ChannelSftp channel = null;
         try {
             channel = (ChannelSftp) session.openChannel("sftp");
             channel.connect();
             try {
-                channel.get(remotePath, destFile.getAbsolutePath());
+                consumer.apply(channel);
             } catch (SftpException e) {
-                throw new JSchException(String.format("Error fetching remote file `%s'", remotePath), e);
+                throw new JSchException("sftp error", e);
             }
         } finally {
             if (channel != null) {
@@ -157,5 +187,21 @@ public class JSchClient {
         if (this.session != null) {
             this.session.disconnect();
         }
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    private interface ChannelSftpConsumer {
+        void apply(ChannelSftp channel) throws JSchException, SftpException;
     }
 }

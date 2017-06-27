@@ -26,10 +26,10 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         JSchClient client = null;
         try {
-            FilePath[] configPaths = context.jobContext().getWorkspace().list(relativeFilePath);
+            FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePath);
             if (configPaths == null || configPaths.length == 0) {
                 context.logError("No configuration found at: " + relativeFilePath);
-                context.setDeploymentState(DeploymentState.UnSuccessful);
+                context.setDeploymentState(DeploymentState.HasError);
                 return;
             }
 
@@ -37,15 +37,24 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
             for (FilePath configPath : configPaths) {
                 String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
-                context.logStatus("Copying marathon file to remote file: " + deployedFilename);
-                client.copyTo(new File(configPath.getRemote()), deployedFilename);
+                context.logStatus(String.format("Copying marathon config file `%s' to remote: %s:%s", configPath.toURI(), client.getHost(), deployedFilename));
+                client.copyTo(configPath.read(), deployedFilename);
 
-                String appId = JsonHelper.getId(configPath.getRemote());
+                String appId = JsonHelper.getId(configPath.read());
                 //ignore if app does not exist
                 context.logStatus(String.format("Deleting application with appId: '%s' if it exists", appId));
-                client.execRemote("curl -X DELETE http://localhost/marathon/v2/apps/" + appId);
+                client.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);
                 context.logStatus(String.format("Deploying file '%s' with appId %s to marathon.", deployedFilename, appId));
-                client.execRemote("curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps");
+                // NB. about "?force=true"
+                // Sometimes the deployment gets rejected after the previous delete of the same application ID
+                // with the following message:
+                //
+                // App is locked by one or more deployments. Override with the option '?force=true'.
+                // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
+                client.execRemote("curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps?force=true");
+
+                context.logStatus("Remove temporary remote config file: " + deployedFilename);
+                client.execRemote("rm -f " + deployedFilename);
             }
             context.setDeploymentState(DeploymentState.Success);
         } catch (JSchException | IOException | InterruptedException e) {
