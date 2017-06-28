@@ -20,12 +20,12 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
     private transient Class startCommandClass;
 
     protected void configure(
-            JobContext jobContext,
-            Hashtable<Class, TransitionInfo> commands,
-            Class startCommandClass) {
-        this.jobContext = jobContext;
-        this.commands = commands;
-        this.startCommandClass = startCommandClass;
+            final JobContext jobCtx,
+            final Hashtable<Class, TransitionInfo> cmds,
+            final Class startCmdClass) {
+        this.jobContext = jobCtx;
+        this.commands = cmds;
+        this.startCommandClass = startCmdClass;
     }
 
     @Override
@@ -41,8 +41,8 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
     @Override
     public abstract IBaseCommandData getDataForCommand(ICommand command);
 
-    public void setDeploymentState(DeploymentState deployState) {
-        this.deployState = deployState;
+    public void setDeploymentState(final DeploymentState state) {
+        this.deployState = state;
     }
 
     public DeploymentState getDeploymentState() {
@@ -54,28 +54,28 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
     }
 
     public boolean getIsFinished() {
-        return this.deployState.equals(DeploymentState.HasError) ||
-                this.deployState.equals(DeploymentState.Done);
+        return this.deployState.equals(DeploymentState.HasError)
+                || this.deployState.equals(DeploymentState.Done);
     }
 
     public final JobContext jobContext() {
         return jobContext;
     }
 
-    public void logStatus(String status) {
+    public void logStatus(final String status) {
         jobContext().getTaskListener().getLogger().println(status);
     }
 
-    public void logError(Exception ex) {
+    public void logError(final Exception ex) {
         this.logError(Messages.AbstractBaseContext_error(), ex);
     }
 
-    public void logError(String prefix, Exception ex) {
+    public void logError(final String prefix, final Exception ex) {
         ex.printStackTrace(jobContext().getTaskListener().error(prefix + ex.getMessage()));
         this.deployState = DeploymentState.HasError;
     }
 
-    public void logError(String message) {
+    public void logError(final String message) {
         jobContext().getTaskListener().error(message);
         this.deployState = DeploymentState.HasError;
     }

@@ -13,7 +13,8 @@ import java.util.Map;
  * Utility methods to help with the migration of the dependencies.
  */
 public final class DependencyMigration {
-    public static AzureTokenCredentials buildAzureTokenCredentials(AzureCredentials.ServicePrincipal servicePrincipal) {
+    public static AzureTokenCredentials buildAzureTokenCredentials(
+            final AzureCredentials.ServicePrincipal servicePrincipal) {
         return new ApplicationTokenCredentials(
                 servicePrincipal.getClientId(),
                 servicePrincipal.getTenant(),

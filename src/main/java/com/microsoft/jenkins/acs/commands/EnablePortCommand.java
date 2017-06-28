@@ -14,6 +14,7 @@ import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
 import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import hudson.FilePath;
 
@@ -23,7 +24,7 @@ import java.util.Map;
 
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
     @Override
-    public void execute(IEnablePortCommandData context) {
+    public void execute(final IEnablePortCommandData context) {
         String relativeFilePaths = context.getConfigFilePaths();
         if (context.getOrchestratorType() != ContainerServiceOchestratorTypes.DCOS) {
             context.setDeploymentState(DeploymentState.Success);
@@ -60,10 +61,13 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     private static boolean createSecurityRule(
-            IBaseCommandData context, Azure azureClient, String resourceGroupName, int hostPort)
-            throws IOException {
+            final IBaseCommandData context,
+            final Azure azureClient,
+            final String resourceGroupName,
+            final int hostPort) throws IOException {
 
-        PagedList<NetworkSecurityGroup> securityGroups = azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
+        PagedList<NetworkSecurityGroup> securityGroups =
+                azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
         context.logStatus(Messages.EnablePortCommand_createSecurityRuleIfNeeded(hostPort));
         boolean securityRuleFound = false;
         int maxPrio = Integer.MIN_VALUE;
@@ -96,8 +100,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         if (!securityRuleFound) {
-            maxPrio = maxPrio + 10;
-            if (maxPrio > 4086) {
+            maxPrio = maxPrio + Constants.PRIORITY_STEP;
+            if (maxPrio > Constants.MAX_PRIORITY) {
                 context.logError(Messages.EnablePortCommand_exceedMaxPriority());
                 return false;
             }
@@ -122,8 +126,10 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     private static boolean createLoadBalancerRule(
-            IBaseCommandData context, Azure azureClient, String resourceGroupName, int hostPort)
-            throws IOException {
+            final IBaseCommandData context,
+            final Azure azureClient,
+            final String resourceGroupName,
+            final int hostPort) throws IOException {
 
         PagedList<LoadBalancer> loadBalancers = azureClient.loadBalancers().listByResourceGroup(resourceGroupName);
         context.logStatus(Messages.EnablePortCommand_createLBIfNeeded(hostPort));
@@ -133,8 +139,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         OUTER:
         for (LoadBalancer balancer : loadBalancers) {
             if (balancer.name().startsWith("dcos-agent-lb-")) {
-                if (balancer.backends().size() != 1 ||
-                        balancer.frontends().size() != 1) {
+                if (balancer.backends().size() != 1
+                        || balancer.frontends().size() != 1) {
                     context.logError(Messages.EnablePortCommand_missMatch());
                     return false;
                 }

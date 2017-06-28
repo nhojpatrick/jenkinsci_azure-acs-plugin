@@ -19,7 +19,7 @@ import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
     @Override
-    public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {
+    public void execute(final IMarathonDeploymentCommandData context) {
         final String host = context.getMgmtFQDN();
         final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         final String linuxAdminUsername = context.getLinuxAdminUsername();
@@ -39,7 +39,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
             for (FilePath configPath : configPaths) {
                 String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
-                context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(configPath.toURI(), client.getHost(), deployedFilename));
+                context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
+                        configPath.toURI(), client.getHost(), deployedFilename));
                 client.copyTo(
                         jobContext.replaceMacro(configPath.read(), context.isEnableConfigSubstitution()),
                         deployedFilename);
@@ -55,7 +56,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 //
                 // App is locked by one or more deployments. Override with the option '?force=true'.
                 // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
-                client.execRemote("curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps?force=true");
+                client.execRemote("curl -i -H 'Content-Type: application/json' -d@"
+                        + deployedFilename + " http://localhost/marathon/v2/apps?force=true");
 
                 context.logStatus(Messages.MarathonDeploymentCommand_removeTempFile(deployedFilename));
                 client.execRemote("rm -f " + deployedFilename);

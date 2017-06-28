@@ -23,7 +23,10 @@ public class JobContext {
     private final Launcher launcher;
     private final TaskListener taskListener;
 
-    public JobContext(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener taskListener) {
+    public JobContext(final Run<?, ?> run,
+                      final FilePath workspace,
+                      final Launcher launcher,
+                      final TaskListener taskListener) {
         this.run = run;
         this.workspace = workspace;
         this.launcher = launcher;
@@ -65,7 +68,7 @@ public class JobContext {
         return new FilePath(launcher.getChannel(), workspace.getRemote());
     }
 
-    public InputStream replaceMacro(InputStream original, boolean enabled) throws IOException {
+    public InputStream replaceMacro(final InputStream original, final boolean enabled) throws IOException {
         if (!enabled) {
             return original;
         }

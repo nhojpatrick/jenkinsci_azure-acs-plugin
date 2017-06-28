@@ -38,10 +38,16 @@ public class JSchClient {
             final int port,
             @Nullable final String username,
             final SSHUserPrivateKey credentials,
-            @Nullable IBaseCommandData context) {
+            @Nullable final IBaseCommandData context) {
         this.host = host;
         this.port = port;
-        this.username = StringUtils.isBlank(username) ? username : credentials.getUsername();
+        String tmpUsername;
+        if (StringUtils.isNotBlank(username)) {
+            tmpUsername = username;
+        } else {
+            tmpUsername = credentials.getUsername();
+        }
+        this.username = tmpUsername;
         this.context = context;
 
         this.jsch = new JSch();
@@ -78,7 +84,7 @@ public class JSchClient {
         log(Messages.JSchClient_copyFileTo(sourceFile, host, remotePath));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
-            public void apply(ChannelSftp channel) throws JSchException, SftpException {
+            public void apply(final ChannelSftp channel) throws JSchException, SftpException {
                 channel.put(sourceFile.getAbsolutePath(), remotePath);
             }
         });
@@ -88,7 +94,7 @@ public class JSchClient {
         try {
             withChannelSftp(new ChannelSftpConsumer() {
                 @Override
-                public void apply(ChannelSftp channel) throws JSchException, SftpException {
+                public void apply(final ChannelSftp channel) throws JSchException, SftpException {
                     channel.put(in, remotePath);
                 }
             });
@@ -105,7 +111,7 @@ public class JSchClient {
         log(Messages.JSchClient_copyFileFrom(host, remotePath, destFile));
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
-            public void apply(ChannelSftp channel) throws JSchException, SftpException {
+            public void apply(final ChannelSftp channel) throws JSchException, SftpException {
                 channel.get(remotePath, destFile.getAbsolutePath());
             }
         });
@@ -114,13 +120,13 @@ public class JSchClient {
     public void copyFrom(final String remotePath, final OutputStream out) throws JSchException {
         withChannelSftp(new ChannelSftpConsumer() {
             @Override
-            public void apply(ChannelSftp channel) throws JSchException, SftpException {
+            public void apply(final ChannelSftp channel) throws JSchException, SftpException {
                 channel.get(remotePath, out);
             }
         });
     }
 
-    public void withChannelSftp(ChannelSftpConsumer consumer) throws JSchException {
+    public void withChannelSftp(final ChannelSftpConsumer consumer) throws JSchException {
         ChannelSftp channel = null;
         try {
             channel = (ChannelSftp) session.openChannel("sftp");
@@ -137,7 +143,7 @@ public class JSchClient {
         }
     }
 
-    public void execRemote(String command) throws JSchException, IOException {
+    public void execRemote(final String command) throws JSchException, IOException {
         ChannelExec channel = null;
         try {
 
@@ -146,7 +152,7 @@ public class JSchClient {
 
             log(Messages.JSchClient_execCommand(command));
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[Constants.READ_BUFFER_SIZE];
 
             channel.connect();
             InputStream in = channel.getInputStream();
@@ -201,7 +207,7 @@ public class JSchClient {
         return username;
     }
 
-    private void log(String message) {
+    private void log(final String message) {
         if (context != null) {
             context.logStatus(message);
         }

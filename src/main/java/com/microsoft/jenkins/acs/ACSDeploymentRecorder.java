@@ -65,7 +65,8 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
         CommandService.executeCommands(context);
 
         if (context.getHasError()) {
-            listener.getLogger().println(Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
+            listener.getLogger().println(
+                    Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
             run.setResult(Result.FAILURE);
         } else {
             listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
@@ -84,7 +85,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
 
-        public boolean isApplicable(Class<? extends AbstractProject> aClass) {
+        public boolean isApplicable(final Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types
             return true;
         }

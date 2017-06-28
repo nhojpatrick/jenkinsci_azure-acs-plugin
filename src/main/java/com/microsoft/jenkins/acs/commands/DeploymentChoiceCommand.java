@@ -7,11 +7,12 @@ import com.microsoft.jenkins.acs.util.Constants;
 /**
  * Makes decision on which deployment method to be used based on the configuration.
  */
-public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand.IDeploymentChoiceCommandData>, INextCommandAware {
+public class DeploymentChoiceCommand
+        implements ICommand<DeploymentChoiceCommand.IDeploymentChoiceCommandData>, INextCommandAware {
     private ContainerServiceOchestratorTypes orchestratorType;
 
     @Override
-    public void execute(IDeploymentChoiceCommandData context) {
+    public void execute(final IDeploymentChoiceCommandData context) {
         ContainerServiceOchestratorTypes type = context.getOrchestratorType();
         if (type == null) {
             context.logError(Messages.DeploymentChoiceCommand_orchestratorNotFound());
@@ -33,7 +34,8 @@ public class DeploymentChoiceCommand implements ICommand<DeploymentChoiceCommand
             case DCOS:
                 return MarathonDeploymentCommand.class;
             default:
-                throw new IllegalStateException(Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
+                throw new IllegalStateException(
+                        Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
         }
     }
 

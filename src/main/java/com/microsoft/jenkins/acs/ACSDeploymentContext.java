@@ -119,8 +119,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public void setMgmtFQDN(String mgmtFQDN) {
-        this.mgmtFQDN = mgmtFQDN;
+    public void setMgmtFQDN(final String fqdn) {
+        this.mgmtFQDN = fqdn;
     }
 
     @Override
@@ -134,7 +134,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public IBaseCommandData getDataForCommand(ICommand command) {
+    public IBaseCommandData getDataForCommand(final ICommand command) {
         return this;
     }
 
@@ -144,8 +144,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public void setLinuxRootUsername(String linuxAdminUsername) {
-        this.linuxAdminUsername = linuxAdminUsername;
+    public void setLinuxRootUsername(final String username) {
+        this.linuxAdminUsername = username;
     }
 
     @Override
@@ -154,8 +154,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public void setOrchestratorType(ContainerServiceOchestratorTypes orchestratorType) {
-        this.orchestratorType = orchestratorType;
+    public void setOrchestratorType(final ContainerServiceOchestratorTypes type) {
+        this.orchestratorType = type;
     }
 
     public String getContainerService() {
@@ -202,17 +202,26 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
-        commands.put(GetContainserServiceInfoCommand.class, new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
+        commands.put(GetContainserServiceInfoCommand.class,
+                new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
 
         // DeploymentChoiceCommand will point out the next step through INextCommandAware
-        commands.put(DeploymentChoiceCommand.class, new TransitionInfo(new DeploymentChoiceCommand(), null, null));
+        commands.put(DeploymentChoiceCommand.class,
+                new TransitionInfo(new DeploymentChoiceCommand(), null, null));
 
-        // ACS with Kubernetes will add a security rule for the service port automatically, so no need to manually create one to enable the port access
-        commands.put(KubernetesDeploymentCommand.class, new TransitionInfo(new KubernetesDeploymentCommand(), null, null));
+        // ACS with Kubernetes will add a security rule for the service port automatically,
+        // so no need to manually create one to enable the port access
+        commands.put(KubernetesDeploymentCommand.class,
+                new TransitionInfo(new KubernetesDeploymentCommand(), null, null));
 
-        commands.put(MarathonDeploymentCommand.class, new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
-        commands.put(EnablePortCommand.class, new TransitionInfo(new EnablePortCommand(), null, null));
-        super.configure(new JobContext(run, workspace, launcher, listener), commands, GetContainserServiceInfoCommand.class);
+        commands.put(MarathonDeploymentCommand.class,
+                new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
+        commands.put(EnablePortCommand.class,
+                new TransitionInfo(new EnablePortCommand(), null, null));
+        super.configure(
+                new JobContext(run, workspace, launcher, listener),
+                commands,
+                GetContainserServiceInfoCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 
@@ -227,7 +236,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return creds;
     }
 
-    public static String getContainerServiceName(String containerService) {
+    public static String getContainerServiceName(final String containerService) {
         if (StringUtils.isBlank(containerService)) {
             throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankContainerService());
         }
@@ -235,12 +244,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return part[0].trim();
     }
 
-    public static String getOrchestratorType(String containerService) {
+    public static String getOrchestratorType(final String containerService) {
         if (StringUtils.isBlank(containerService)) {
             return null;
         }
         String[] parts = containerService.split("\\|");
-        return parts.length == 2 ? parts[1].trim() : null;
+        if (parts.length == 2) {
+            return parts[1].trim();
+        }
+        return null;
     }
 
     public static String validate(
@@ -358,7 +370,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             }
         }
 
-        public ListBoxModel doFillResourceGroupNameItems(@QueryParameter String azureCredentialsId) {
+        public ListBoxModel doFillResourceGroupNameItems(@QueryParameter final String azureCredentialsId) {
             ListBoxModel model = new ListBoxModel();
 
             if (StringUtils.isBlank(azureCredentialsId)
@@ -368,7 +380,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
             }
 
             try {
-                AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
+                AzureCredentials.ServicePrincipal servicePrincipal =
+                        AzureCredentials.getServicePrincipal(azureCredentialsId);
                 if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
                     model.add(Messages.ACSDeploymentContext_selectAzureCredentialsFirst(), Constants.INVALID_OPTION);
                     return model;
@@ -379,7 +392,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     model.add(resourceGroup.name());
                 }
             } catch (Exception ex) {
-                model.add(Messages.ACSDeploymentContext_failedToLoadResourceGroups(ex.getMessage()), Constants.INVALID_OPTION);
+                model.add(
+                        Messages.ACSDeploymentContext_failedToLoadResourceGroups(ex.getMessage()),
+                        Constants.INVALID_OPTION);
             }
 
             if (model.isEmpty()) {
@@ -398,7 +413,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     || Constants.INVALID_OPTION.equals(azureCredentialsId)
                     || StringUtils.isBlank(resourceGroupName)
                     || Constants.INVALID_OPTION.equals(resourceGroupName)) {
-                model.add(Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(), Constants.INVALID_OPTION);
+                model.add(
+                        Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(),
+                        Constants.INVALID_OPTION);
                 return model;
             }
 
@@ -406,7 +423,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 AzureCredentials.ServicePrincipal servicePrincipal =
                         AzureCredentials.getServicePrincipal(azureCredentialsId);
                 if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
-                    model.add(Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(), Constants.INVALID_OPTION);
+                    model.add(
+                            Messages.ACSDeploymentContext_selectAzureCredentialsAndGroupFirst(),
+                            Constants.INVALID_OPTION);
                     return model;
                 }
 
@@ -416,8 +435,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
                         azureClient.containerServices().listByResourceGroup(resourceGroupName);
                 for (ContainerService containerService : containerServices) {
                     ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
-                    if (orchestratorType == ContainerServiceOchestratorTypes.DCOS ||
-                            orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
+                    if (orchestratorType == ContainerServiceOchestratorTypes.DCOS
+                            || orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
                         String name = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
                         String value = String.format("%s | %s",
@@ -426,7 +445,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     }
                 }
             } catch (Exception ex) {
-                model.add(Messages.ACSDeploymentContext_failedToLoadContainerServices(ex.getMessage()), Constants.INVALID_OPTION);
+                model.add(
+                        Messages.ACSDeploymentContext_failedToLoadContainerServices(ex.getMessage()),
+                        Constants.INVALID_OPTION);
             }
 
             if (model.isEmpty()) {
@@ -436,7 +457,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return model;
         }
 
-        public FormValidation doCheckConfigFilePaths(@QueryParameter String value) {
+        public FormValidation doCheckConfigFilePaths(@QueryParameter final String value) {
             if (value == null || value.length() == 0) {
                 return FormValidation.error(Messages.ACSDeploymentContext_configFilePathsRequired());
             }

@@ -13,8 +13,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-public class JsonHelper {
-    public static ArrayList<Integer> getHostPorts(InputStream in) throws IOException {
+public final class JsonHelper {
+    public static ArrayList<Integer> getHostPorts(final InputStream in) throws IOException {
         ArrayList<Integer> hostPorts = new ArrayList<>();
         try {
             final ObjectMapper mapper = new ObjectMapper();
@@ -32,7 +32,7 @@ public class JsonHelper {
         return hostPorts;
     }
 
-    public static String getId(InputStream in) throws IOException {
+    public static String getId(final InputStream in) throws IOException {
         try {
             final ObjectMapper mapper = new ObjectMapper();
             JsonNode parentNode = mapper.readTree(in);
@@ -40,5 +40,9 @@ public class JsonHelper {
         } finally {
             in.close();
         }
+    }
+
+    private JsonHelper() {
+        // hide constructor
     }
 }

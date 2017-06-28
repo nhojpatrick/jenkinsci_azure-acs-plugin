@@ -26,9 +26,10 @@ import java.io.IOException;
 /**
  * Command to deploy Kubernetes configurations to Azure Container Service.
  */
-public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymentCommand.IKubernetesDeploymentCommandData> {
+public class KubernetesDeploymentCommand
+        implements ICommand<KubernetesDeploymentCommand.IKubernetesDeploymentCommandData> {
     @Override
-    public void execute(IKubernetesDeploymentCommandData context) {
+    public void execute(final IKubernetesDeploymentCommandData context) {
         final JobContext jobContext = context.jobContext();
         final EnvVars envVars = jobContext.envVars();
         final TaskListener listener = jobContext.getTaskListener();
@@ -46,7 +47,12 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
         File kubeconfigFile = null;
         JSchClient jschClient = null;
         try {
-            jschClient = new JSchClient(context.getMgmtFQDN(), Constants.KUBERNETES_SSH_PORT, context.getLinuxAdminUsername(), sshCredentials, context);
+            jschClient = new JSchClient(
+                    context.getMgmtFQDN(),
+                    Constants.KUBERNETES_SSH_PORT,
+                    context.getLinuxAdminUsername(),
+                    sshCredentials,
+                    context);
             kubeconfigFile = File.createTempFile(Constants.KUBECONFIG_PREFIX, "", Constants.TEMP_DIR);
 
             jschClient.copyFrom(Constants.KUBECONFIG_FILE, kubeconfigFile);
@@ -54,7 +60,12 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
             Config config = kubeConfigFromFile(kubeconfigFile);
 
             KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
-            KubernetesClientUtil.apply(jobContext, kubernetesClient, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
+            KubernetesClientUtil.apply(
+                    jobContext,
+                    kubernetesClient,
+                    kubernetesNamespaceCfg,
+                    configFilePathsCfg,
+                    context.isEnableConfigSubstitution());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             context.logError(e);

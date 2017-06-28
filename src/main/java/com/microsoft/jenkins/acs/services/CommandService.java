@@ -13,8 +13,8 @@ import com.microsoft.jenkins.acs.commands.TransitionInfo;
 
 import java.util.Hashtable;
 
-public class CommandService {
-    public static boolean executeCommands(ICommandServiceData commandServiceData) {
+public final class CommandService {
+    public static boolean executeCommands(final ICommandServiceData commandServiceData) {
         Class startCommand = commandServiceData.getStartCommandClass();
         Hashtable<Class, TransitionInfo> commands = commandServiceData.getCommands();
         if (!commands.isEmpty() && startCommand != null) {
@@ -34,11 +34,11 @@ public class CommandService {
                         // consider the INextCommandAware command as failure if deployment state is not Success
                         return false;
                     }
-                } else if (commandData.getDeploymentState() == DeploymentState.Success &&
-                        previous.getSuccess() != null) {
+                } else if (commandData.getDeploymentState() == DeploymentState.Success
+                        && previous.getSuccess() != null) {
                     current = commands.get(previous.getSuccess());
-                } else if (commandData.getDeploymentState() == DeploymentState.UnSuccessful &&
-                        previous.getFail() != null) {
+                } else if (commandData.getDeploymentState() == DeploymentState.UnSuccessful
+                        && previous.getFail() != null) {
                     current = commands.get(previous.getFail());
                 } else if (commandData.getDeploymentState() == DeploymentState.HasError) {
                     return false;
@@ -49,5 +49,9 @@ public class CommandService {
         }
 
         return false;
+    }
+
+    private CommandService() {
+        // hide constructor
     }
 }
