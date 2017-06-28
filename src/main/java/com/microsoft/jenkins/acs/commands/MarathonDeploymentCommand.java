@@ -3,6 +3,7 @@
  * Licensed under the MIT License. See License.txt in the project root for
  * license information.
  */
+
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
