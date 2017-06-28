@@ -5,7 +5,7 @@ Behaviour.specify("select[name$=containerService]", 'hide-optional-based-on-orch
         if (c === null) {
             return;
         }
-        if (/\|kubernetes/i.test(value)) {
+        if (/\|\s*kubernetes$/i.test(value)) {
             $(c).up('tr').show();
         } else {
             $(c).up('tr').hide();
