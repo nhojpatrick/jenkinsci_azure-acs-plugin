@@ -438,11 +438,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                     ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
                     if (orchestratorType == ContainerServiceOchestratorTypes.DCOS
                             || orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
-                        String name = String.format("%s | %s",
-                                containerService.name(), containerService.orchestratorType());
                         String value = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
-                        model.add(name, value);
+                        model.add(value);
                     }
                 }
             } catch (Exception ex) {

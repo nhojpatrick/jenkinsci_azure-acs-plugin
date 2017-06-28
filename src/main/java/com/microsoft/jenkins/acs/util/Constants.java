@@ -24,8 +24,14 @@ public final class Constants {
 
     public static final String DEFAULT_CHARSET = "UTF-8";
 
+    /**
+     * Increment step for the priority of the network security rule.
+     */
     public static final int PRIORITY_STEP = 10;
-    public static final int MAX_PRIORITY = 4086;
+    /**
+     * Lowest priority for the network security rule (value range: [100, 4096]). Smaller number got higher priority.
+     */
+    public static final int LOWEST_PRIORITY = 4096;
 
     public static final int READ_BUFFER_SIZE = 1024;
 

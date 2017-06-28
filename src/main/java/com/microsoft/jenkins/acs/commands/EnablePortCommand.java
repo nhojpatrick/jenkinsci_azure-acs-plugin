@@ -71,7 +71,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
         context.logStatus(Messages.EnablePortCommand_createSecurityRuleIfNeeded(hostPort));
         boolean securityRuleFound = false;
-        int maxPrio = Integer.MIN_VALUE;
+        int maxPriorityNumber = Integer.MIN_VALUE;
         NetworkSecurityGroup publicGroup = null;
         OUTER:
         for (NetworkSecurityGroup group : securityGroups) {
@@ -83,8 +83,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             for (Map.Entry<String, NetworkSecurityRule> entry : group.securityRules().entrySet()) {
                 NetworkSecurityRule rule = entry.getValue();
                 int prio = rule.priority();
-                if (prio > maxPrio) {
-                    maxPrio = prio;
+                if (prio > maxPriorityNumber) {
+                    maxPriorityNumber = prio;
                 }
 
                 if (rule.destinationPortRange().equals(hostPort + "")) {
@@ -101,8 +101,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         if (!securityRuleFound) {
-            maxPrio = maxPrio + Constants.PRIORITY_STEP;
-            if (maxPrio > Constants.MAX_PRIORITY) {
+            maxPriorityNumber = maxPriorityNumber + Constants.PRIORITY_STEP;
+            if (maxPriorityNumber > Constants.LOWEST_PRIORITY) {
                 context.logError(Messages.EnablePortCommand_exceedMaxPriority());
                 return false;
             }
@@ -119,7 +119,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                     .toPort(hostPort)
                     .withAnyProtocol()
                     .withDescription(Messages.EnablePortCommand_allowTraffic(hostPort))
-                    .withPriority(maxPrio)
+                    .withPriority(maxPriorityNumber)
                     .attach()
                     .apply();
         }
