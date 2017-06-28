@@ -5,7 +5,6 @@
  */
 package com.microsoft.jenkins.acs;
 
-import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.services.CommandService;
 import hudson.Extension;
 import hudson.FilePath;
@@ -55,30 +54,23 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException, InterruptedException {
+            @Nonnull final TaskListener listener) throws IOException {
         listener.getLogger().println(Messages.ACSDeploymentRecorder_starting());
-        try {
-            this.context.configure(
-                    run,
-                    workspace,
-                    launcher,
-                    listener);
+        this.context.configure(
+                run,
+                workspace,
+                launcher,
+                listener);
 
-            CommandService.executeCommands(context);
+        CommandService.executeCommands(context);
 
-            if (context.getHasError()) {
-                listener.getLogger().println(Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
-                run.setResult(Result.FAILURE);
-            } else {
-                listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
-            }
-        } catch (InterruptedException ie) {
-            listener.error(Messages.ACSDeploymentRecorder_interrupted(), ie);
-            throw ie;
-        } catch (AzureCloudException ace) {
-            listener.error(Messages.ACSDeploymentRecorder_errorConfig(ace.getMessage()), ace);
+        if (context.getHasError()) {
+            listener.getLogger().println(Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
             run.setResult(Result.FAILURE);
+        } else {
+            listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
         }
+
     }
 
     /**

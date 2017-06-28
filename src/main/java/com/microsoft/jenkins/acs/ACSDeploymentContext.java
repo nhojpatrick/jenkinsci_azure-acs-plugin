@@ -26,7 +26,6 @@ import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
-import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JSchClient;
@@ -199,7 +198,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException, InterruptedException, AzureCloudException {
+            @Nonnull final TaskListener listener) throws IOException {
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();

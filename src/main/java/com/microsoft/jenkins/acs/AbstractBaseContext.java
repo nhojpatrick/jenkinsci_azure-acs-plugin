@@ -71,8 +71,7 @@ public abstract class AbstractBaseContext implements ICommandServiceData {
     }
 
     public void logError(String prefix, Exception ex) {
-        jobContext().getTaskListener().error(prefix + ex.getMessage());
-        ex.printStackTrace();
+        ex.printStackTrace(jobContext().getTaskListener().error(prefix + ex.getMessage()));
         this.deployState = DeploymentState.HasError;
     }
 

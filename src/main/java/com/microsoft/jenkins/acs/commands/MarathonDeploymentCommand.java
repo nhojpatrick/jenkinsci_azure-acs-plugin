@@ -61,9 +61,11 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 client.execRemote("rm -f " + deployedFilename);
             }
             context.setDeploymentState(DeploymentState.Success);
-        } catch (JSchException | IOException | InterruptedException e) {
-            context.logError(Messages.MarathonDeploymentCommand_errorDeploying(), e);
-            context.setDeploymentState(DeploymentState.UnSuccessful);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            context.logError(e);
+        } catch (JSchException | IOException e) {
+            context.logError(e);
         } finally {
             if (client != null) {
                 client.close();

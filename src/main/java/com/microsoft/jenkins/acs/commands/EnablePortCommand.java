@@ -14,7 +14,6 @@ import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
 import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.jenkins.acs.Messages;
-import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import hudson.FilePath;
 
@@ -40,30 +39,32 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 ArrayList<Integer> hostPorts = JsonHelper.getHostPorts(configPath.read());
                 context.logStatus(Messages.EnablePortCommand_enabling(hostPorts));
                 for (Integer hPort : hostPorts) {
-                    boolean retVal = createSecurityGroup(context, azureClient, resourceGroupName, hPort);
-                    if (retVal) {
-                        retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
-                        if (!retVal) {
-                            throw new AzureCloudException(Messages.EnablePortCommand_errorEnabling(hPort));
-                        }
-                    } else {
-                        throw new AzureCloudException(Messages.EnablePortCommand_errorEnabling(hPort));
+                    boolean retVal = createSecurityRule(context, azureClient, resourceGroupName, hPort);
+                    if (!retVal) {
+                        return;
+                    }
+                    retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
+                    if (!retVal) {
+                        return;
                     }
                 }
             }
 
             context.setDeploymentState(DeploymentState.Success);
-        } catch (InterruptedException | IOException | AzureCloudException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            context.logError(e);
+        } catch (IOException e) {
             context.logError(e);
         }
     }
 
-    private static boolean createSecurityGroup(
+    private static boolean createSecurityRule(
             IBaseCommandData context, Azure azureClient, String resourceGroupName, int hostPort)
-            throws InterruptedException, IOException, AzureCloudException {
+            throws IOException {
 
         PagedList<NetworkSecurityGroup> securityGroups = azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
-        context.logStatus(Messages.EnablePortCommand_createSecurityGroupIfNeeded(hostPort));
+        context.logStatus(Messages.EnablePortCommand_createSecurityRuleIfNeeded(hostPort));
         boolean securityRuleFound = false;
         int maxPrio = Integer.MIN_VALUE;
         NetworkSecurityGroup publicGroup = null;
@@ -90,16 +91,15 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         if (publicGroup == null) {
-            // TODO: create one
+            context.logError(Messages.EnablePortCommand_securityGroupNotFound());
             return false;
         }
 
         if (!securityRuleFound) {
-            context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(hostPort));
             maxPrio = maxPrio + 10;
             if (maxPrio > 4086) {
                 context.logError(Messages.EnablePortCommand_exceedMaxPriority());
-                throw new AzureCloudException(Messages.EnablePortCommand_exceedMaxPriority());
+                return false;
             }
 
             String ruleName = "Allow_" + hostPort;
@@ -123,7 +123,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
     private static boolean createLoadBalancerRule(
             IBaseCommandData context, Azure azureClient, String resourceGroupName, int hostPort)
-            throws InterruptedException, IOException, AzureCloudException {
+            throws IOException {
 
         PagedList<LoadBalancer> loadBalancers = azureClient.loadBalancers().listByResourceGroup(resourceGroupName);
         context.logStatus(Messages.EnablePortCommand_createLBIfNeeded(hostPort));
@@ -136,7 +136,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 if (balancer.backends().size() != 1 ||
                         balancer.frontends().size() != 1) {
                     context.logError(Messages.EnablePortCommand_missMatch());
-                    throw new AzureCloudException(Messages.EnablePortCommand_missMatch());
+                    return false;
                 }
                 foundLoadBalancer = balancer;
 
@@ -151,12 +151,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         if (foundLoadBalancer == null) {
-            // TODO: create one
+            context.logError(Messages.EnablePortCommand_lbNotFound());
             return false;
         }
 
         if (!ruleFound) {
-            context.logStatus(Messages.EnablePortCommand_lBNotFound(hostPort));
             String ruleName = "JLBRuleHttp" + hostPort;
             context.logStatus(Messages.EnablePortCommand_creatingLB(hostPort, ruleName));
 

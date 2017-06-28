@@ -6,6 +6,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.jcraft.jsch.JSchException;
 import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -20,6 +21,7 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import org.apache.commons.lang.StringUtils;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
  * Command to deploy Kubernetes configurations to Azure Container Service.
@@ -53,9 +55,11 @@ public class KubernetesDeploymentCommand implements ICommand<KubernetesDeploymen
 
             KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
             KubernetesClientUtil.apply(jobContext, kubernetesClient, kubernetesNamespaceCfg, configFilePathsCfg, context.isEnableConfigSubstitution());
-        } catch (Exception e) {
-            e.printStackTrace(listener.error(Messages.KubernetesDeploymentCommand_unexpectedError()));
-            context.setDeploymentState(DeploymentState.HasError);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            context.logError(e);
+        } catch (IOException | JSchException e) {
+            context.logError(e);
         } finally {
             if (kubeconfigFile != null) {
                 context.logStatus(
