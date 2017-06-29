@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See License.txt in the project root for
+ * license information.
+ */
+
 Behaviour.specify("select[name$=containerService]", 'hide-optional-based-on-orchestrator', 10000, function(select) {
     function handleChange() {
         var value = $(select).getValue();

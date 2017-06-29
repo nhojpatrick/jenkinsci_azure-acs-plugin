@@ -18,6 +18,7 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.commands.CheckBuildResultCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
@@ -26,6 +27,7 @@ import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
+import com.microsoft.jenkins.acs.commands.RunOn;
 import com.microsoft.jenkins.acs.commands.SwarmDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
@@ -60,7 +62,8 @@ import java.util.Hashtable;
 import java.util.List;
 
 public class ACSDeploymentContext extends AbstractBaseContext
-        implements GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData,
+        implements CheckBuildResultCommand.ICheckBuildResultCommandData,
+        GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
@@ -68,6 +71,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         DeploymentChoiceCommand.IDeploymentChoiceCommandData,
         Describable<ACSDeploymentContext> {
 
+    private final String runOn;
     private final String azureCredentialsId;
     private final String resourceGroupName;
     private final String containerService;
@@ -86,11 +90,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @DataBoundConstructor
     public ACSDeploymentContext(
+            final String runOn,
             final String azureCredentialsId,
             final String resourceGroupName,
             final String containerService,
             final String sshCredentialsId,
             final String configFilePaths) {
+        this.runOn = runOn;
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = resourceGroupName;
         this.containerService = containerService;
@@ -101,6 +107,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
     @Override
     public Descriptor<ACSDeploymentContext> getDescriptor() {
         return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
+    }
+
+    public String getRunOn() {
+        return runOn;
+    }
+
+    @Override
+    public RunOn getRunOnOption() {
+        return RunOn.fromString(this.runOn);
     }
 
     public String getAzureCredentialsId() {
@@ -249,6 +264,10 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
+
+        commands.put(CheckBuildResultCommand.class,
+                new TransitionInfo(new CheckBuildResultCommand(), GetContainserServiceInfoCommand.class, null));
+
         commands.put(GetContainserServiceInfoCommand.class,
                 new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
 
@@ -273,7 +292,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         super.configure(
                 new JobContext(run, workspace, launcher, listener),
                 commands,
-                GetContainserServiceInfoCommand.class);
+                CheckBuildResultCommand.class);
         this.setDeploymentState(DeploymentState.Running);
     }
 
