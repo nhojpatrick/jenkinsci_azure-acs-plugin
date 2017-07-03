@@ -15,7 +15,6 @@ import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.KubernetesClientUtil;
 import hudson.EnvVars;
 import hudson.Util;
-import hudson.model.TaskListener;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -33,7 +32,6 @@ public class KubernetesDeploymentCommand
     public void execute(final IKubernetesDeploymentCommandData context) {
         final JobContext jobContext = context.jobContext();
         final EnvVars envVars = jobContext.envVars();
-        final TaskListener listener = jobContext.getTaskListener();
 
         SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         String kubernetesNamespaceCfg = Util.replaceMacro(context.getKubernetesNamespace(), envVars).trim();
@@ -67,6 +65,8 @@ public class KubernetesDeploymentCommand
                     kubernetesNamespaceCfg,
                     configFilePathsCfg,
                     context.isEnableConfigSubstitution());
+
+            context.setDeploymentState(DeploymentState.Success);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             context.logError(e);

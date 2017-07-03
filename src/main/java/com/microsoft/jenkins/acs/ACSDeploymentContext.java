@@ -149,14 +149,19 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.linuxAdminUsername = username;
     }
 
+    /**
+     * We use the orchestratorType bound at configuration time. At build time we should check if this is consistent
+     * with the configuration and fail if not.
+     *
+     * @return the container service's orchestrator type configured for the build
+     */
     @Override
     public ContainerServiceOchestratorTypes getOrchestratorType() {
-        return orchestratorType;
-    }
+        if (orchestratorType == null) {
+            orchestratorType = ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
+        }
 
-    @Override
-    public void setOrchestratorType(final ContainerServiceOchestratorTypes type) {
-        this.orchestratorType = type;
+        return orchestratorType;
     }
 
     public String getContainerService() {
@@ -247,13 +252,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     public static String getOrchestratorType(final String containerService) {
         if (StringUtils.isBlank(containerService)) {
-            return null;
+            throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
         }
         String[] parts = containerService.split("\\|");
         if (parts.length == 2) {
             return parts[1].trim();
         }
-        return null;
+        throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
     }
 
     public static String validate(
@@ -277,19 +282,20 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return Messages.ACSDeploymentContext_missingSSHCredentials();
         }
 
-        ContainerServiceOchestratorTypes orchestratorType =
-                ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
-        if (orchestratorType == null) {
-            return Messages.ACSDeploymentContext_missingOrchestratorType();
-        }
+        try {
+            ContainerServiceOchestratorTypes orchestratorType =
+                    ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
 
-        if (!Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
-            return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorType);
-        }
+            if (!Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
+                return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorType);
+            }
 
-        if (ContainerServiceOchestratorTypes.KUBERNETES == orchestratorType
-                && StringUtils.isBlank(kubernetesNamespace)) {
-            return Messages.ACSDeploymentContext_missingKubernetesNamespace();
+            if (ContainerServiceOchestratorTypes.KUBERNETES == orchestratorType
+                    && StringUtils.isBlank(kubernetesNamespace)) {
+                return Messages.ACSDeploymentContext_missingKubernetesNamespace();
+            }
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
         }
         return null;
     }

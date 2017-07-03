@@ -6,7 +6,7 @@
 
 package com.microsoft.jenkins.acs.commands;
 
-public class TransitionInfo {
+public class TransitionInfo implements INextCommandAware {
     private ICommand<IBaseCommandData> command;
     private Class success;
     private Class fail;
@@ -15,10 +15,12 @@ public class TransitionInfo {
         return this.command;
     }
 
+    @Override
     public Class getSuccess() {
         return this.success;
     }
 
+    @Override
     public Class getFail() {
         return this.fail;
     }

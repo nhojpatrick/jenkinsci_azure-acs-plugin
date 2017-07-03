@@ -33,7 +33,7 @@ public class DeploymentChoiceCommand
     }
 
     @Override
-    public Class<? extends ICommand<? extends IBaseCommandData>> getNextCommand() {
+    public Class getSuccess() {
         switch (orchestratorType) {
             case KUBERNETES:
                 return KubernetesDeploymentCommand.class;
@@ -43,6 +43,11 @@ public class DeploymentChoiceCommand
                 throw new IllegalStateException(
                         Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
         }
+    }
+
+    @Override
+    public Class getFail() {
+        return null;
     }
 
     public interface IDeploymentChoiceCommandData extends IBaseCommandData {

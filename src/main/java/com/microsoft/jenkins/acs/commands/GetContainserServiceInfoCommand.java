@@ -33,7 +33,13 @@ public class GetContainserServiceInfoCommand
 
         ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
         context.logStatus(Messages.GetContainserServiceInfoCommand_orchestratorType(orchestratorType));
-        context.setOrchestratorType(orchestratorType);
+
+        ContainerServiceOchestratorTypes configured = context.getOrchestratorType();
+        if (configured == null || orchestratorType != configured) {
+            context.logError(Messages.GetContainserServiceInfoCommand_orchestratorTypeNotMatch(
+                    containerServiceName, orchestratorType, configured
+            ));
+        }
 
         final String fqdn = containerService.masterFqdn();
         context.logStatus(Messages.GetContainserServiceInfoCommand_fqdn(fqdn));
@@ -51,6 +57,6 @@ public class GetContainserServiceInfoCommand
 
         void setLinuxRootUsername(String linuxAdminUsername);
 
-        void setOrchestratorType(ContainerServiceOchestratorTypes type);
+        ContainerServiceOchestratorTypes getOrchestratorType();
     }
 }

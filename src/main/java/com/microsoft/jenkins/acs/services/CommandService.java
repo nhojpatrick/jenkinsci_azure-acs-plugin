@@ -29,11 +29,14 @@ public final class CommandService {
                 current = null;
 
                 if (command instanceof INextCommandAware) {
+                    Class next;
                     if (commandData.getDeploymentState() == DeploymentState.Success) {
-                        current = commands.get(((INextCommandAware) command).getNextCommand());
+                        next = ((INextCommandAware) command).getSuccess();
                     } else {
-                        // consider the INextCommandAware command as failure if deployment state is not Success
-                        return false;
+                        next = ((INextCommandAware) command).getFail();
+                    }
+                    if (next != null) {
+                        current = commands.get(next);
                     }
                 } else if (commandData.getDeploymentState() == DeploymentState.Success
                         && previous.getSuccess() != null) {
