@@ -1,0 +1,22 @@
+<!--
+  ~ Copyright (c) Microsoft Corporation. All rights reserved.
+  ~ Licensed under the MIT License. See License.txt in the project root for
+  ~ license information.
+  -->
+
+<div>
+    <p>
+        Determine if the Docker credentials archive upload path specified above is shared among all the agents.
+    </p>
+    <p>
+        To ease the shared files access, we may create share file storage for all the DC/OS agent nodes as
+        <a href="https://docs.microsoft.com/en-us/azure/container-service/container-service-dcos-fileshare"
+           target="_blank" title="Create and mount a file share to a DC/OS cluster">
+            this documentation (Create and mount a file share to a DC/OS cluster)
+        </a> suggests. With the help of the shared storage, we only need to upload the Docker credentials archive
+        to the shared storage once, and all the agent nodes get the access to the resource immediately.
+    </p>
+    <p>
+        Check this option if the Docker credentials archive upload path is a shared storage path.
+    </p>
+</div>

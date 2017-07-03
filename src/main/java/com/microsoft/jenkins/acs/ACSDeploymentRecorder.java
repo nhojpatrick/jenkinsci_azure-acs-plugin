@@ -55,7 +55,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException {
+            @Nonnull final TaskListener listener) throws IOException, InterruptedException {
         listener.getLogger().println(Messages.ACSDeploymentRecorder_starting());
         this.context.configure(
                 run,

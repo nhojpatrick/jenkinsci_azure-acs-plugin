@@ -34,6 +34,7 @@ public class JSchClient {
     private final String host;
     private final int port;
     private final String username;
+    private final SSHUserPrivateKey credentials;
     private final IBaseCommandData context;
 
     private final JSch jsch;
@@ -57,6 +58,7 @@ public class JSchClient {
         this.context = context;
 
         this.jsch = new JSch();
+        this.credentials = credentials;
         final Secret userPassphrase = credentials.getPassphrase();
         String passphrase = null;
         if (userPassphrase != null) {
@@ -149,14 +151,20 @@ public class JSchClient {
         }
     }
 
-    public void execRemote(final String command) throws JSchException, IOException {
+    public String execRemote(final String command) throws JSchException, IOException {
+        return execRemote(command, true);
+    }
+
+    public String execRemote(final String command, final boolean showCommand) throws JSchException, IOException {
         ChannelExec channel = null;
         try {
 
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
 
-            log(Messages.JSchClient_execCommand(command));
+            if (showCommand) {
+                log(Messages.JSchClient_execCommand(command));
+            }
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[Constants.READ_BUFFER_SIZE];
 
@@ -190,6 +198,7 @@ public class JSchClient {
             }
             String serverOutput = output.toString(Constants.DEFAULT_CHARSET);
             log(Messages.JSchClient_output(serverOutput));
+            return serverOutput;
         } catch (UnsupportedEncodingException e) {
             throw new IllegalArgumentException(Messages.JSchClient_failedExecution(), e);
         } finally {
@@ -197,6 +206,30 @@ public class JSchClient {
                 channel.disconnect();
             }
         }
+    }
+
+    /**
+     * Forward another remote SSH port to local through the current client, and create a new client based on the local
+     * port.
+     *
+     * This is used to deal with the Jenkins slave -&gt; ACS master -&gt; ACS agents connection, where
+     * <ul>
+     *     <li>ACS master is accessible through a public IP, and has information for all the agents included.</li>
+     *     <li>ACS agents are not publicly accessible directly. They lie in the same subnet with the master node and
+     *     only has some private IP in that subnet. There maybe some front-end load balancer for the agents but we
+     *     cannot access a specific agent from the public network directly.</li>
+     * </ul>
+     *
+     * In order to talk to the agents from public network, we connect to the master node, use SSH forwarding to open
+     * a local port and forward the traffic through the SSH tunnel to the agent SSH service.
+     *
+     * @param remoteHost The agent private IP address.
+     * @param remotePort The agent SSH service port, by default this is 22.
+     * @return A new client to the agent node with the same credentials
+     */
+    public JSchClient forwardSSH(final String remoteHost, final int remotePort) throws JSchException {
+        int localPort = session.setPortForwardingL(0, remoteHost, remotePort);
+        return new JSchClient("127.0.0.1", localPort, username, credentials, context);
     }
 
     public void close() {

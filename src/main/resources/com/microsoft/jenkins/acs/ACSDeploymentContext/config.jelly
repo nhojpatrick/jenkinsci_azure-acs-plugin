@@ -5,57 +5,71 @@
   -->
 
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
-         xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
-    <f:entry title="${%runOn_title}" field="runOn"
-             help="/plugin/azure-acs/help-runOn.html">
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
+    <f:entry title="${%runOn_title}" field="runOn">
         <f:radio name="runOn" value="Success" title="Run only if build succeeds"
-                 checked="${instance.runOn ne 'SuccessOrUnstable'}" />
+                 checked="${instance.runOn ne 'SuccessOrUnstable'}"/>
         <f:radio name="runOn" value="SuccessOrUnstable" title="Run only if build succeeds or is unstable"
-                 checked="${instance.runOn eq 'SuccessOrUnstable'}" />
+                 checked="${instance.runOn eq 'SuccessOrUnstable'}"/>
     </f:entry>
 
-    <f:entry title="${%azureCredentialsId_title}" field="azureCredentialsId"
-             help="/plugin/azure-acs/help-azureCredentialsId.html">
-        <c:select expressionAllowed="false"/>
-    </f:entry>
-    <f:entry title="${%resourceGroupName_title}" field="resourceGroupName"
-             help="/plugin/azure-acs/help-resourceGroupName.html">
-        <f:select/>
-    </f:entry>
+    <f:section title="${%deploymentConfiguration_title}">
+        <f:entry title="${%azureCredentialsId_title}" field="azureCredentialsId">
+            <c:select expressionAllowed="false"/>
+        </f:entry>
+        <f:entry title="${%resourceGroupName_title}" field="resourceGroupName">
+            <f:select/>
+        </f:entry>
 
-    <f:entry title="${%containerService_title}" field="containerService"
-             help="/plugin/azure-acs/help-containerService.html">
-        <f:select/>
-    </f:entry>
+        <f:entry title="${%containerService_title}" field="containerService">
+            <f:select/>
+        </f:entry>
 
-    <f:entry title="${%sshCredentialsId_title}" field="sshCredentialsId"
-             help="/plugin/azure-acs/help-sshCredentialsId.html">
-        <c:select expressionAllowed="false"/>
-    </f:entry>
+        <f:entry title="${%sshCredentialsId_title}" field="sshCredentialsId">
+            <c:select expressionAllowed="false"/>
+        </f:entry>
 
-    <f:entry title="${%configFilePaths_title}" field="configFilePaths"
-             help="/plugin/azure-acs/help-configFilePaths.html">
-        <f:textbox/>
-    </f:entry>
+        <f:entry title="${%configFilePaths_title}" field="configFilePaths">
+            <f:textbox/>
+        </f:entry>
 
-    <f:entry title="${%enableConfigSubstitution_title}" field="enableConfigSubstitution"
-             help="/plugin/azure-acs/help-enableConfigSubstitution.html">
-        <f:checkbox/>
-    </f:entry>
+        <f:entry title="${%enableConfigSubstitution_title}" field="enableConfigSubstitution">
+            <f:checkbox/>
+        </f:entry>
 
-    <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace"
-             help="/plugin/azure-acs/help-kubernetesNamespace.html">
-        <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" clazz="kubernetes-optional"/>
-    </f:entry>
+        <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace">
+            <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" clazz="kubernetes-optional"/>
+        </f:entry>
 
-    <f:entry title="${%swarmRemoveContainersFirst_title}" field="swarmRemoveContainersFirst"
-             help="/plugin/azure-acs/help-swarmRemoveContainersFirst.html">
-        <f:checkbox default="false" />
-    </f:entry>
+        <f:entry title="${%swarmRemoveContainersFirst_title}" field="swarmRemoveContainersFirst">
+            <f:checkbox default="false"/>
+        </f:entry>
 
-    <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"
-                      with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId"/>
+        <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"
+                          with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId"/>
+
+    </f:section>
+
+    <f:advanced title="${%containerRegistryCredentialsSection_title}">
+        <f:entry title="${%secretName_title}" field="secretName">
+            <f:textbox/>
+        </f:entry>
+        <f:entry title="${%dcosDockerCredentialsPath_title}" field="dcosDockerCredentialsPath">
+            <f:textbox/>
+        </f:entry>
+        <f:entry title="${%dcosDockerCredenditalsPathShared_title}" field="dcosDockerCredenditalsPathShared">
+            <f:checkbox/>
+        </f:entry>
+        <f:entry title="${%containerRegistryCredentials_title}">
+            <f:repeatableProperty field="containerRegistryCredentials">
+                <f:entry title="">
+                    <div align="right">
+                        <f:repeatableDeleteButton/>
+                    </div>
+                </f:entry>
+            </f:repeatableProperty>
+        </f:entry>
+    </f:advanced>
 
     <st:once>
         <script type="text/javascript" src="${rootURL}/plugin/azure-acs/scripts/deployment-context.js"></script>

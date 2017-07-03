@@ -20,6 +20,7 @@ import com.microsoft.azure.management.network.SecurityRuleDirection;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
+import com.microsoft.jenkins.acs.util.Constants;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -30,8 +31,6 @@ import java.util.Set;
 
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
 
-    public static final int SECURITY_RULE_PRIORITY_STEP = 10;
-    public static final int SECURITY_RULE_MAX_PRIORITY = 4086;
     public static final int LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES = 5;
 
     static final class InvalidConfigException extends Exception {
@@ -78,12 +77,12 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 maxPriority = priority;
             }
 
-            if (rule.direction() != SecurityRuleDirection.INBOUND) {
+            if (!SecurityRuleDirection.INBOUND.equals(rule.direction())) {
                 // Ignore outbound rules
                 continue;
             }
 
-            if (rule.access() != SecurityRuleAccess.ALLOW) {
+            if (!SecurityRuleAccess.ALLOW.equals(rule.access())) {
                 // If user denied a port explicitly, we honor this rule and won't disable or modify it automatically
                 // even it might be in our ports-to-open list, as it's hard for us to guess the user's intention without
                 // knowledge of network topology and application details. So we just ignore it here.
@@ -178,8 +177,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         for (final int port : portsToOpen) {
             context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(String.valueOf(port)));
 
-            maxPriority = maxPriority + SECURITY_RULE_PRIORITY_STEP;
-            if (maxPriority > SECURITY_RULE_MAX_PRIORITY) {
+            maxPriority = maxPriority + Constants.PRIORITY_STEP;
+            if (maxPriority > Constants.LOWEST_PRIORITY) {
                 throw new InvalidConfigException(Messages.EnablePortCommand_exceedMaxPriority());
             }
 

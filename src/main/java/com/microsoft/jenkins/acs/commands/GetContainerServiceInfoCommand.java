@@ -11,10 +11,10 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 
-public class GetContainserServiceInfoCommand
-        implements ICommand<GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData> {
+public class GetContainerServiceInfoCommand
+        implements ICommand<GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData> {
     @Override
-    public void execute(final IGetContainserServiceInfoCommandData context) {
+    public void execute(final IGetContainerServiceInfoCommandData context) {
         context.logStatus(Messages.GetContainserServiceInfoCommand_getFQDN());
         final Azure azureClient = context.getAzureClient();
         final String resourceGroupName = context.getResourceGroupName();
@@ -53,7 +53,7 @@ public class GetContainserServiceInfoCommand
         context.setDeploymentState(DeploymentState.Success);
     }
 
-    public interface IGetContainserServiceInfoCommandData extends IBaseCommandData {
+    public interface IGetContainerServiceInfoCommandData extends IBaseCommandData {
         void setMgmtFQDN(String mgmtFQDN);
 
         void setLinuxRootUsername(String linuxAdminUsername);

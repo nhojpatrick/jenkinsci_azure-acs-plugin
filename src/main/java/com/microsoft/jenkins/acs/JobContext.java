@@ -74,15 +74,14 @@ public class JobContext {
         return new FilePath(launcher.getChannel(), workspace.getRemote());
     }
 
-    public InputStream replaceMacro(final InputStream original, final boolean enabled) throws IOException {
-        if (!enabled) {
-            return original;
-        }
+    public ByteArrayInputStream replaceMacro(final InputStream original, final boolean enabled) throws IOException {
         try {
             String content = IOUtils.toString(original, Constants.DEFAULT_CHARSET);
-            if (content != null) {
+            if (enabled) {
                 content = Util.replaceMacro(content, envVars());
-                return new ByteArrayInputStream(content.getBytes());
+            }
+            if (content != null) {
+                return new ByteArrayInputStream(content.getBytes(Constants.DEFAULT_CHARSET));
             } else {
                 throw new IllegalArgumentException(Messages.JobContext_nullContent());
             }
