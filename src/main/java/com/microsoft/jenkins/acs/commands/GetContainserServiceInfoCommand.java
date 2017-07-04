@@ -39,6 +39,7 @@ public class GetContainserServiceInfoCommand
             context.logError(Messages.GetContainserServiceInfoCommand_orchestratorTypeNotMatch(
                     containerServiceName, orchestratorType, configured
             ));
+            return;
         }
 
         final String fqdn = containerService.masterFqdn();

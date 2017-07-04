@@ -32,7 +32,6 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePath);
             if (configPaths == null || configPaths.length == 0) {
                 context.logError(Messages.MarathonDeploymentCommand_configNotFoundAt(relativeFilePath));
-                context.setDeploymentState(DeploymentState.HasError);
                 return;
             }
 

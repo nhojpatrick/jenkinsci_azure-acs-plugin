@@ -25,26 +25,20 @@ public final class CommandService {
                 ICommand<IBaseCommandData> command = current.getCommand();
                 IBaseCommandData commandData = commandServiceData.getDataForCommand(command);
                 command.execute(commandData);
-                TransitionInfo previous = current;
+
+                INextCommandAware previous = current;
+                if (command instanceof INextCommandAware) {
+                    previous = (INextCommandAware) command;
+                }
+
                 current = null;
 
-                if (command instanceof INextCommandAware) {
-                    Class next;
-                    if (commandData.getDeploymentState() == DeploymentState.Success) {
-                        next = ((INextCommandAware) command).getSuccess();
-                    } else {
-                        next = ((INextCommandAware) command).getFail();
-                    }
-                    if (next != null) {
-                        current = commands.get(next);
-                    }
-                } else if (commandData.getDeploymentState() == DeploymentState.Success
-                        && previous.getSuccess() != null) {
+                final DeploymentState state = commandData.getDeploymentState();
+                if (state == DeploymentState.Success && previous.getSuccess() != null) {
                     current = commands.get(previous.getSuccess());
-                } else if (commandData.getDeploymentState() == DeploymentState.UnSuccessful
-                        && previous.getFail() != null) {
+                } else if (state == DeploymentState.UnSuccessful && previous.getFail() != null) {
                     current = commands.get(previous.getFail());
-                } else if (commandData.getDeploymentState() == DeploymentState.HasError) {
+                } else if (state == DeploymentState.HasError) {
                     return false;
                 }
             }
