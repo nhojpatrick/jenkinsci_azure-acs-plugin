@@ -51,7 +51,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                         jobContext.replaceMacro(configPath.read(), context.isEnableConfigSubstitution()),
                         deployedFilename);
 
-                String appId = JsonHelper.getId(configPath.read());
+                String appId = JsonHelper.getMarathonAppId(configPath.read());
                 //ignore if app does not exist
                 context.logStatus(Messages.MarathonDeploymentCommand_deletingApp(appId));
                 client.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);

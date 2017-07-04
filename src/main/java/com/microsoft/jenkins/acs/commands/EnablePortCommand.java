@@ -32,7 +32,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     public static final int SECURITY_RULE_MAX_PRIORITY = 4086;
     public static final int LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES = 5;
 
-    private static final class InvalidConfigException extends Exception {
+    static final class InvalidConfigException extends Exception {
         InvalidConfigException(final String message) {
             super(message);
         }
@@ -52,9 +52,9 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             final String resourcePrefix = config.getResourcePrefix();
             final List<ServicePort> servicePorts = config.getServicePorts();
 
-            createSecurityRule(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
+            createSecurityRules(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
 
-            createLoadBalancerRule(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
+            createLoadBalancerRules(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
 
             context.setDeploymentState(DeploymentState.Success);
         } catch (IOException | InvalidConfigException | DeploymentConfig.InvalidFormatException e) {
@@ -122,7 +122,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         return maxPriority;
     }
 
-    private static void createSecurityRule(
+    static void createSecurityRules(
             final IBaseCommandData context,
             final Azure azureClient,
             final String resourceGroupName,
@@ -186,7 +186,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         update.apply();
     }
 
-    private static void createLoadBalancerRule(
+    static void createLoadBalancerRules(
             final IBaseCommandData context,
             final Azure azureClient,
             final String resourceGroupName,

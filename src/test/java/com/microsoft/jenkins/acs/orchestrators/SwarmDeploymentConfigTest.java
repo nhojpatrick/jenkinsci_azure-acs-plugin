@@ -14,13 +14,13 @@ import java.util.List;
 
 public class SwarmDeploymentConfigTest {
 
-    private void assertServicePorts(String config, List<ServicePort> expServicePorts) throws IOException, DeploymentConfig.InvalidFormatException, InterruptedException {
+    private void assertServicePorts(String content, List<ServicePort> expServicePorts) throws IOException, DeploymentConfig.InvalidFormatException, InterruptedException {
         final File file = File.createTempFile("tst-acs-", ".yml");
         file.deleteOnExit();
-        FileUtils.write(file, config, "UTF-8");
+        FileUtils.write(file, content, "UTF-8");
 
-        SwarmDeploymentConfig configFile = new SwarmDeploymentConfig(new FilePath[]{new FilePath(file)});
-        List<ServicePort> servicePorts = configFile.getServicePorts();
+        SwarmDeploymentConfig config = new SwarmDeploymentConfig(new FilePath[]{new FilePath(file)});
+        List<ServicePort> servicePorts = config.getServicePorts();
 
         Assert.assertEquals(expServicePorts.size(), servicePorts.size());
         for (int i = 0; i < servicePorts.size(); i++) {

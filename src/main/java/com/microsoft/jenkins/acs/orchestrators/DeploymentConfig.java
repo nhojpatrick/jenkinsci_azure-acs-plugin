@@ -28,5 +28,9 @@ public abstract class DeploymentConfig {
             super(msg);
         }
 
+        public InvalidFormatException(final Exception ex) {
+            super(ex);
+        }
+
     }
 }
