@@ -163,6 +163,10 @@ public class JSchClient {
             channel.connect();
             InputStream in = channel.getInputStream();
 
+            if (context != null) {
+                channel.setErrStream(context.jobContext().getTaskListener().getLogger(), true);
+            }
+
             while (true) {
                 do {
                     // blocks on IO

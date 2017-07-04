@@ -26,7 +26,12 @@ import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
+import com.microsoft.jenkins.acs.commands.SwarmDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
+import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
+import com.microsoft.jenkins.acs.orchestrators.KubernetesDeploymentConfig;
+import com.microsoft.jenkins.acs.orchestrators.MarathonDeploymentConfig;
+import com.microsoft.jenkins.acs.orchestrators.SwarmDeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.JSchClient;
@@ -58,6 +63,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
+        SwarmDeploymentCommand.ISwarmDeploymentCommandData,
         DeploymentChoiceCommand.IDeploymentChoiceCommandData,
         Describable<ACSDeploymentContext> {
 
@@ -105,6 +111,22 @@ public class ACSDeploymentContext extends AbstractBaseContext
     @Override
     public String getConfigFilePaths() {
         return this.configFilePaths;
+    }
+
+    @Override
+    public DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException {
+        final String expandedConfigFilePaths = jobContext().envVars().expand(configFilePaths);
+        final FilePath[] configFiles = jobContext().getWorkspace().list(expandedConfigFilePaths);
+
+        if (orchestratorType.equals(ContainerServiceOchestratorTypes.DCOS)) {
+            return new MarathonDeploymentConfig(configFiles);
+        } else if (orchestratorType.equals(ContainerServiceOchestratorTypes.KUBERNETES)) {
+            return new KubernetesDeploymentConfig(configFiles);
+        } else if (orchestratorType.equals(ContainerServiceOchestratorTypes.SWARM)) {
+            return new SwarmDeploymentConfig(configFiles);
+        } else {
+            return null;
+        }
     }
 
     public String getSshCredentialsId() {
@@ -222,8 +244,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
         commands.put(MarathonDeploymentCommand.class,
                 new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
+
+        commands.put(SwarmDeploymentCommand.class,
+                new TransitionInfo(new SwarmDeploymentCommand(), EnablePortCommand.class, null));
+
         commands.put(EnablePortCommand.class,
                 new TransitionInfo(new EnablePortCommand(), null, null));
+
         super.configure(
                 new JobContext(run, workspace, launcher, listener),
                 commands,
@@ -442,8 +469,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
                         azureClient.containerServices().listByResourceGroup(resourceGroupName);
                 for (ContainerService containerService : containerServices) {
                     ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
-                    if (orchestratorType == ContainerServiceOchestratorTypes.DCOS
-                            || orchestratorType == ContainerServiceOchestratorTypes.KUBERNETES) {
+                    if (Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
                         String value = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
                         model.add(value);

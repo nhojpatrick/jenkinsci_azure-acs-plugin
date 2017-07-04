@@ -37,11 +37,13 @@ public final class Constants {
 
     public static final Set<ContainerServiceOchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
             ContainerServiceOchestratorTypes.KUBERNETES,
-            ContainerServiceOchestratorTypes.DCOS
+            ContainerServiceOchestratorTypes.DCOS,
+            ContainerServiceOchestratorTypes.SWARM
     ));
 
     public static final int DCOS_SSH_PORT = 2200;
     public static final int KUBERNETES_SSH_PORT = 22;
+    public static final int SWARM_SSH_PORT = 2200;
 
     public static int sshPort(final ContainerServiceOchestratorTypes type) {
         switch (type) {
@@ -49,6 +51,8 @@ public final class Constants {
                 return DCOS_SSH_PORT;
             case KUBERNETES:
                 return KUBERNETES_SSH_PORT;
+            case SWARM:
+                return SWARM_SSH_PORT;
             default:
                 return -1;
         }

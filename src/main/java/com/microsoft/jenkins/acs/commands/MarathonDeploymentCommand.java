@@ -10,13 +10,14 @@ import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.JSchException;
 import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.acs.util.DeployHelper;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.JsonHelper;
 import hudson.FilePath;
 
 import java.io.IOException;
-import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
     @Override
@@ -24,21 +25,26 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         final String host = context.getMgmtFQDN();
         final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
         final String linuxAdminUsername = context.getLinuxAdminUsername();
-        final String relativeFilePath = context.getConfigFilePaths();
         final JobContext jobContext = context.jobContext();
 
         JSchClient client = null;
         try {
-            FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePath);
+            final DeploymentConfig config = context.getDeploymentConfig();
+            if (config == null) {
+                context.logError(Messages.DeploymentConfig_invalidConfig());
+                return;
+            }
+
+            FilePath[] configPaths = config.getConfigFiles();
             if (configPaths == null || configPaths.length == 0) {
-                context.logError(Messages.MarathonDeploymentCommand_configNotFoundAt(relativeFilePath));
+                context.logError(Messages.MarathonDeploymentCommand_configNotFound());
                 return;
             }
 
             client = new JSchClient(host, Constants.DCOS_SSH_PORT, linuxAdminUsername, sshCredentials, context);
 
             for (FilePath configPath : configPaths) {
-                String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
+                String deployedFilename = DeployHelper.generateRandomDeploymentFileName("json");
                 context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
                         configPath.toURI(), client.getHost(), deployedFilename));
                 client.copyTo(
@@ -82,7 +88,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         SSHUserPrivateKey getSshCredentials();
 
-        String getConfigFilePaths();
+        DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
 
         boolean isEnableConfigSubstitution();
     }

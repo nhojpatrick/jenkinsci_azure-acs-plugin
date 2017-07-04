@@ -8,189 +8,261 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.network.LoadBalancer;
+import com.microsoft.azure.management.network.LoadBalancerBackend;
+import com.microsoft.azure.management.network.LoadBalancerFrontend;
 import com.microsoft.azure.management.network.LoadBalancingRule;
+import com.microsoft.azure.management.network.LoadDistribution;
 import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
-import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.jenkins.acs.Messages;
-import com.microsoft.jenkins.acs.util.Constants;
-import com.microsoft.jenkins.acs.util.JsonHelper;
-import hudson.FilePath;
+import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
+import com.microsoft.jenkins.acs.orchestrators.ServicePort;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
+
+    public static final int SECURITY_RULE_PRIORITY_STEP = 10;
+    public static final int SECURITY_RULE_MAX_PRIORITY = 4086;
+    public static final int LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES = 5;
+
+    private static final class InvalidConfigException extends Exception {
+        InvalidConfigException(final String message) {
+            super(message);
+        }
+    }
+
     @Override
     public void execute(final IEnablePortCommandData context) {
-        String relativeFilePaths = context.getConfigFilePaths();
-        if (context.getOrchestratorType() != ContainerServiceOchestratorTypes.DCOS) {
-            context.setDeploymentState(DeploymentState.Success);
-            return;
-        }
-
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
-            FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePaths);
-
-            for (FilePath configPath : configPaths) {
-                ArrayList<Integer> hostPorts = JsonHelper.getHostPorts(configPath.read());
-                context.logStatus(Messages.EnablePortCommand_enabling(hostPorts));
-                for (Integer hPort : hostPorts) {
-                    boolean retVal = createSecurityRule(context, azureClient, resourceGroupName, hPort);
-                    if (!retVal) {
-                        return;
-                    }
-                    retVal = createLoadBalancerRule(context, azureClient, resourceGroupName, hPort);
-                    if (!retVal) {
-                        return;
-                    }
-                }
+            final DeploymentConfig config = context.getDeploymentConfig();
+            if (config == null) {
+                context.logError(Messages.DeploymentConfig_invalidConfig());
+                return;
             }
 
+            final String resourcePrefix = config.getResourcePrefix();
+            final List<ServicePort> servicePorts = config.getServicePorts();
+
+            createSecurityRule(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
+
+            createLoadBalancerRule(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
+
             context.setDeploymentState(DeploymentState.Success);
+        } catch (IOException | InvalidConfigException | DeploymentConfig.InvalidFormatException e) {
+            context.logError(e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            context.logError(e);
-        } catch (IOException e) {
             context.logError(e);
         }
     }
 
-    private static boolean createSecurityRule(
+    static int filterPortsToOpen(
+            final IBaseCommandData context,
+            final Collection<NetworkSecurityRule> rules,
+            final Set<Integer> portsToOpen) throws InvalidConfigException {
+        int maxPriority = Integer.MIN_VALUE;
+        for (final NetworkSecurityRule rule : rules) {
+            final int priority = rule.priority();
+            if (priority > maxPriority) {
+                maxPriority = priority;
+            }
+
+            final String ruleDestPortRange = rule.destinationPortRange();
+
+            if (ruleDestPortRange.equals("*")) {
+                // Already allow all
+                context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowAll(
+                        rule.name(), ruleDestPortRange));
+
+                // No ports need to open
+                portsToOpen.clear();
+
+                break;
+            } else if (ruleDestPortRange.contains("-")) {
+                // Range
+                final String[] parts = ruleDestPortRange.split("-", 2);
+                int portStart = 0;
+                int portEnd = 0;
+                try {
+                    portStart = Integer.valueOf(parts[0]);
+                    portEnd = Integer.valueOf(parts[1]);
+                } catch (NumberFormatException ex) {
+                    throw new InvalidConfigException(
+                            Messages.EnablePortCommand_securityRuleInvalidDestinationPortRange(ruleDestPortRange));
+                }
+
+                for (Iterator<Integer> it = portsToOpen.iterator(); it.hasNext();) {
+                    final int port = it.next();
+                    if (port >= portStart && port <= portEnd) {
+                        // Port already allowed
+                        context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
+                                rule.name(), ruleDestPortRange, String.valueOf(port)));
+                        it.remove();
+                    }
+                }
+            } else {
+                // Single
+                final int port = Integer.valueOf(ruleDestPortRange);
+                if (portsToOpen.remove(port)) {
+                    context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
+                            rule.name(), ruleDestPortRange, String.valueOf(port)));
+                }
+            }
+        }
+
+        return maxPriority;
+    }
+
+    private static void createSecurityRule(
             final IBaseCommandData context,
             final Azure azureClient,
             final String resourceGroupName,
-            final int hostPort) throws IOException {
+            final String resourcePrefix,
+            final List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
 
-        PagedList<NetworkSecurityGroup> securityGroups =
+        if (servicePorts.isEmpty()) {
+            return;
+        }
+
+        Set<Integer> portsToOpen = new HashSet<Integer>();
+        for (final ServicePort servicePort : servicePorts) {
+            portsToOpen.add(servicePort.getHostPort());
+        }
+
+        final PagedList<NetworkSecurityGroup> nsgs =
                 azureClient.networkSecurityGroups().listByResourceGroup(resourceGroupName);
-        context.logStatus(Messages.EnablePortCommand_createSecurityRuleIfNeeded(hostPort));
-        boolean securityRuleFound = false;
-        int maxPriorityNumber = Integer.MIN_VALUE;
-        NetworkSecurityGroup publicGroup = null;
-        OUTER:
-        for (NetworkSecurityGroup group : securityGroups) {
-            if (!group.name().startsWith("dcos-agent-public-nsg-")) {
-                continue;
-            }
 
-            publicGroup = group;
-            for (Map.Entry<String, NetworkSecurityRule> entry : group.securityRules().entrySet()) {
-                NetworkSecurityRule rule = entry.getValue();
-                int prio = rule.priority();
-                if (prio > maxPriorityNumber) {
-                    maxPriorityNumber = prio;
-                }
-
-                if (rule.destinationPortRange().equals(hostPort + "")) {
-                    context.logStatus(Messages.EnablePortCommand_securityRuleFound(hostPort));
-                    securityRuleFound = true;
-                    break OUTER;
-                }
+        // Find security group for public agents
+        NetworkSecurityGroup nsgPublicAgent = null;
+        for (NetworkSecurityGroup nsg : nsgs) {
+            if (nsg.name().startsWith(resourcePrefix + "-agent-public-nsg-")) {
+                nsgPublicAgent = nsg;
+                break;
             }
         }
 
-        if (publicGroup == null) {
-            context.logError(Messages.EnablePortCommand_securityGroupNotFound());
-            return false;
+        if (nsgPublicAgent == null) {
+            // Do nothing if security group not found
+            context.logStatus(Messages.EnablePortCommand_securityGroupNotFound());
+            return;
         }
 
-        if (!securityRuleFound) {
-            maxPriorityNumber = maxPriorityNumber + Constants.PRIORITY_STEP;
-            if (maxPriorityNumber > Constants.LOWEST_PRIORITY) {
-                context.logError(Messages.EnablePortCommand_exceedMaxPriority());
-                return false;
+        int maxPriority = filterPortsToOpen(context, nsgPublicAgent.securityRules().values(), portsToOpen);
+
+        // Create security rules for ports not opened
+        final NetworkSecurityGroup.Update update = nsgPublicAgent.update();
+        for (final int port : portsToOpen) {
+            context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(String.valueOf(port)));
+
+            maxPriority = maxPriority + SECURITY_RULE_PRIORITY_STEP;
+            if (maxPriority > SECURITY_RULE_MAX_PRIORITY) {
+                throw new InvalidConfigException(Messages.EnablePortCommand_exceedMaxPriority());
             }
 
-            String ruleName = "Allow_" + hostPort;
-            context.logStatus(Messages.EnablePortCommand_creatingRule(hostPort, ruleName));
+            final String ruleName = "Allow_" + port;
+            context.logStatus(Messages.EnablePortCommand_creatingRule(String.valueOf(port), ruleName));
 
-            publicGroup.update()
-                    .defineRule(ruleName)
+            update.defineRule(ruleName)
                     .allowInbound()
                     .fromAnyAddress()
                     .fromAnyPort()
                     .toAnyAddress()
-                    .toPort(hostPort)
+                    .toPort(port)
                     .withAnyProtocol()
-                    .withDescription(Messages.EnablePortCommand_allowTraffic(hostPort))
-                    .withPriority(maxPriorityNumber)
-                    .attach()
-                    .apply();
+                    .withDescription(Messages.EnablePortCommand_allowTraffic(String.valueOf(port)))
+                    .withPriority(maxPriority)
+                    .attach();
         }
-        return true;
+
+        update.apply();
     }
 
-    private static boolean createLoadBalancerRule(
+    private static void createLoadBalancerRule(
             final IBaseCommandData context,
             final Azure azureClient,
             final String resourceGroupName,
-            final int hostPort) throws IOException {
+            final String resourcePrefix,
+            final List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
 
-        PagedList<LoadBalancer> loadBalancers = azureClient.loadBalancers().listByResourceGroup(resourceGroupName);
-        context.logStatus(Messages.EnablePortCommand_createLBIfNeeded(hostPort));
+        if (servicePorts.isEmpty()) {
+            return;
+        }
 
-        boolean ruleFound = false;
-        LoadBalancer foundLoadBalancer = null;
-        OUTER:
-        for (LoadBalancer balancer : loadBalancers) {
-            if (balancer.name().startsWith("dcos-agent-lb-")) {
-                if (balancer.backends().size() != 1
-                        || balancer.frontends().size() != 1) {
-                    context.logError(Messages.EnablePortCommand_missMatch());
-                    return false;
+        final PagedList<LoadBalancer> balancers = azureClient.loadBalancers().listByResourceGroup(resourceGroupName);
+
+        LoadBalancer loadBalancer = null;
+        for (LoadBalancer balancer : balancers) {
+            final String balancerName = balancer.name();
+            if (balancerName.startsWith(resourcePrefix + "-agent-lb-")) {
+                if (balancer.backends().size() != 1 || balancer.frontends().size() != 1) {
+                    throw new InvalidConfigException(Messages.EnablePortCommand_missMatch());
                 }
-                foundLoadBalancer = balancer;
 
-                for (LoadBalancingRule rule : balancer.loadBalancingRules().values()) {
-                    if (rule.frontendPort() == hostPort) {
-                        context.logStatus(Messages.EnablePortCommand_lbFound(hostPort));
-                        ruleFound = true;
-                        break OUTER;
-                    }
-                }
+                loadBalancer = balancer;
+                break;
             }
         }
 
-        if (foundLoadBalancer == null) {
-            context.logError(Messages.EnablePortCommand_lbNotFound());
-            return false;
+        if (loadBalancer == null) {
+            // Do nothing if load balancer not found
+            context.logStatus(Messages.EnablePortCommand_lbNotFound());
+            return;
         }
 
-        if (!ruleFound) {
-            String ruleName = "JLBRuleHttp" + hostPort;
-            context.logStatus(Messages.EnablePortCommand_creatingLB(hostPort, ruleName));
+        final LoadBalancerFrontend frontend = loadBalancer.frontends().values().iterator().next();
+        final LoadBalancerBackend backend = loadBalancer.backends().values().iterator().next();
+        final LoadBalancer.Update update = loadBalancer.update();
 
-            String probeName = "tcpProbe_" + hostPort;
+        for (ServicePort servicePort : servicePorts) {
+            boolean ruleFound = false;
+            for (LoadBalancingRule rule : loadBalancer.loadBalancingRules().values()) {
+                if (servicePort.matchesLoadBalancingRule(rule)) {
+                    context.logStatus(Messages.EnablePortCommand_lbFound(
+                            String.valueOf(servicePort.getHostPort()), servicePort.getProtocol()));
+                    ruleFound = true;
+                    break;
+                }
+            }
 
-            foundLoadBalancer.update()
+            if (!ruleFound) {
+                final String ruleName = "JLBRule" + servicePort.getProtocol().toString() + servicePort.getHostPort();
+                context.logStatus(Messages.EnablePortCommand_creatingLB(
+                        String.valueOf(servicePort.getHostPort()), ruleName));
 
-                    .defineTcpProbe(probeName)
-                    .withPort(hostPort)
-                    .attach()
+                // Unfortunately there is no probe type of UDP, but it's mandatory. So always use TCP probe.
+                final String probeName = "tcpPort" + servicePort.getHostPort() + "Probe";
 
-                    .defineLoadBalancingRule(ruleName)
-                    .withProtocol(TransportProtocol.TCP)
-                    .withFrontend(foundLoadBalancer.frontends().values().iterator().next().name())
-                    .withFrontendPort(hostPort)
-                    .withProbe(probeName)
-                    .withBackend(foundLoadBalancer.backends().values().iterator().next().name())
-                    .attach()
+                update
+                        .defineTcpProbe(probeName)
+                        .withPort(servicePort.getHostPort())
+                        .attach()
+                        .defineLoadBalancingRule(ruleName)
+                        .withProtocol(servicePort.getTransportProtocol())
+                        .withFrontend(frontend.name())
+                        .withFrontendPort(servicePort.getHostPort())
+                        .withProbe(probeName)
+                        .withBackend(backend.name())
+                        .withBackendPort(servicePort.getHostPort())
+                        .withIdleTimeoutInMinutes(LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES)
+                        .withLoadDistribution(LoadDistribution.DEFAULT)
+                        .attach();
 
-                    .apply();
+            }
         }
 
-        return true;
+        update.apply();
     }
 
     public interface IEnablePortCommandData extends IBaseCommandData {
-        String getConfigFilePaths();
-
-        ContainerServiceOchestratorTypes getOrchestratorType();
+        DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
     }
 }

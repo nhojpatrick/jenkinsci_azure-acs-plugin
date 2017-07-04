@@ -39,6 +39,8 @@ public class DeploymentChoiceCommand
                 return KubernetesDeploymentCommand.class;
             case DCOS:
                 return MarathonDeploymentCommand.class;
+            case SWARM:
+                return SwarmDeploymentCommand.class;
             default:
                 throw new IllegalStateException(
                         Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
