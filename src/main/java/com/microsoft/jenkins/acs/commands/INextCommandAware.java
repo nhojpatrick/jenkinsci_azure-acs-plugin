@@ -6,6 +6,11 @@
 
 package com.microsoft.jenkins.acs.commands;
 
-public interface ICommand<T extends IBaseCommandData> {
-    void execute(T context);
+/**
+ * Indicates that a command is aware of its next command to be executed based on its execution status.
+ */
+public interface INextCommandAware {
+    Class getSuccess();
+
+    Class getFail();
 }

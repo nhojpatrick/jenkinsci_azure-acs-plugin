@@ -1,121 +1,60 @@
-/**
+/*
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See License.txt in the project root for
  * license information.
  */
+
 package com.microsoft.jenkins.acs.util;
 
-public class Constants {
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 
-    public static final String CI_SYSTEM = "jenkinsslaves";
+import java.io.File;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
-    public static final int DEFAULT_SSH_PORT = 22;
+public final class Constants {
+    public static final String INVALID_OPTION = "*";
 
-    public static final int DEFAULT_RDP_PORT = 3389;
+    public static final File TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
 
-    public static final String BLOB = "blob";
+    public static final String KUBECONFIG_FILE = ".kube/config";
 
-    public static final String TABLE = "table";
+    public static final String KUBECONFIG_PREFIX = "kubeconfig-";
 
-    public static final String QUEUE = "queue";
+    public static final String DEFAULT_CHARSET = "UTF-8";
 
-    public static final String CONFIG_CONTAINER_NAME = "jenkinsconfig";
+    /**
+     * Increment step for the priority of the network security rule.
+     */
+    public static final int PRIORITY_STEP = 10;
+    /**
+     * Lowest priority for the network security rule (value range: [100, 4096]). Smaller number got higher priority.
+     */
+    public static final int LOWEST_PRIORITY = 4096;
 
-    public static final String HTTP_PROTOCOL_PREFIX = "http://";
+    public static final int READ_BUFFER_SIZE = 1024;
 
-    public static final String BASE_URI_SUFFIX = ".core.windows.net/";
+    public static final Set<ContainerServiceOchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
+            ContainerServiceOchestratorTypes.KUBERNETES,
+            ContainerServiceOchestratorTypes.DCOS
+    ));
 
-    public static final String FWD_SLASH = "/";
+    public static final int DCOS_SSH_PORT = 2200;
+    public static final int KUBERNETES_SSH_PORT = 22;
 
-    public static final String VM_NAME_PREFIX = "Azure";
+    public static int sshPort(final ContainerServiceOchestratorTypes type) {
+        switch (type) {
+            case DCOS:
+                return DCOS_SSH_PORT;
+            case KUBERNETES:
+                return KUBERNETES_SSH_PORT;
+            default:
+                return -1;
+        }
+    }
 
-    public static final int DEFAULT_MAX_VM_LIMIT = 10;
-
-    public static final int DEFAULT_IDLE_TIME = 60;
-
-    public static final String DEFAULT_MANAGEMENT_URL = "https://management.core.windows.net/";
-
-    public static final String AZURE_CLOUD_DISPLAY_NAME = "Microsoft Azure";
-
-    public static final String AZURE_SLAVE_DISPLAY_NAME = "Azure Slave";
-
-    public static final String AZURE_CLOUD_PREFIX = "Azure-";
-
-    public static final String STORAGE_ACCOUNT_PREFIX = "jenkins";
-
-    /** OS Types */
-    public static final String OS_TYPE_WINDOWS = "Windows";
-
-    public static final String OS_TYPE_LINUX = "Linux";
-
-    /** Slaves launch method */
-    public static final String LAUNCH_METHOD_JNLP = "JNLP";
-
-    public static final String LAUNCH_METHOD_SSH = "SSH";
-
-    /** Template Status */
-    public static final String TEMPLATE_STATUS_ACTIVE = "Active until first failure";
-
-    public static final String TEMPLATE_STATUS_ACTIVE_ALWAYS = "Active always";
-
-    public static final String TEMPLATE_STATUS_DISBALED = "Disabled";
-
-    public static final int MAX_PROV_RETRIES = 20;
-
-    /** Error codes */
-    public static final String ERROR_CODE_RESOURCE_NF = "ResourceNotFound";
-
-    public static final String ERROR_CODE_CONFLICT = "ConflictError";
-
-    public static final String ERROR_CODE_BAD_REQUEST = "BadRequest";
-
-    public static final String ERROR_CODE_FORBIDDEN = "Forbidden";
-
-    public static final String ERROR_CODE_SERVICE_EXCEPTION = "ServiceException";
-
-    public static final String ERROR_CODE_UNKNOWN_HOST = "UnknownHostException";
-
-    /** End points */
-    public static final String PROTOCOL_TCP = "tcp";
-
-    public static final String EP_SSH_NAME = "ssh";
-
-    public static final String EP_RDP_NAME = "rdp";
-
-    /** Status messages */
-    public static final String OP_SUCCESS = "Success";
-
-    /** Provisioning failure reasons */
-    public static final String JNLP_POST_PROV_LAUNCH_FAIL
-            = "Provisioning Failure: JNLP slave failed to connect. Make sure that "
-            + "slave node is able to reach master and necessary firewall rules are configured";
-
-    public static final String SLAVE_POST_PROV_JAVA_NOT_FOUND
-            = "Post Provisioning Failure: Java runtime not found. At a minimum init script "
-            + " should ensure that java runtime is installed";
-
-    public static final String SLAVE_POST_PROV_AUTH_FAIL
-            = "Post Provisioning Failure: Not able to authenticate via username and "
-            + " Image may not be supporting password authentication , marking template has disabled";
-
-    public static final String SLAVE_POST_PROV_CONN_FAIL
-            = "Post Provisioning Failure: Not able to connect to slave machine. Ensure that ssh server is configured properly";
-
-    public static final String REG_EX_DIGIT = "\\d+";
-
-    /** Role Status */
-    public static final String READY_ROLE_STATUS = "ReadyRole";
-
-    public static final String DELETING_VM_STATUS = "DeletingVM";
-
-    public static final String STOPPED_VM_STATUS = "StoppedVM";
-
-    public static final String STOPPING_VM_STATUS = "StoppingVM";
-
-    public static final String STOPPING_ROLE_STATUS = "StoppingRole";
-
-    public static final String STOPPED_DEALLOCATED_VM_STATUS = "StoppedDeallocated";
-
-    public static final String RESOURCE_GROUP_NAME = "jenkins";
-
+    private Constants() {
+        // hide constructor
+    }
 }

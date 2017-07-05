@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See License.txt in the project root for
+ * license information.
+ */
+
 package com.microsoft.jenkins.acs.util;
 
 import com.microsoft.azure.AzureEnvironment;
@@ -13,7 +19,8 @@ import java.util.Map;
  * Utility methods to help with the migration of the dependencies.
  */
 public final class DependencyMigration {
-    public static AzureTokenCredentials buildAzureTokenCredentials(AzureCredentials.ServicePrincipal servicePrincipal) {
+    public static AzureTokenCredentials buildAzureTokenCredentials(
+            final AzureCredentials.ServicePrincipal servicePrincipal) {
         return new ApplicationTokenCredentials(
                 servicePrincipal.getClientId(),
                 servicePrincipal.getTenant(),

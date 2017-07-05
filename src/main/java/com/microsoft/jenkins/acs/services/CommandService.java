@@ -1,19 +1,21 @@
-/**
+/*
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See License.txt in the project root for
  * license information.
  */
+
 package com.microsoft.jenkins.acs.services;
 
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
+import com.microsoft.jenkins.acs.commands.INextCommandAware;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 
 import java.util.Hashtable;
 
-public class CommandService {
-    public static boolean executeCommands(ICommandServiceData commandServiceData) {
+public final class CommandService {
+    public static boolean executeCommands(final ICommandServiceData commandServiceData) {
         Class startCommand = commandServiceData.getStartCommandClass();
         Hashtable<Class, TransitionInfo> commands = commandServiceData.getCommands();
         if (!commands.isEmpty() && startCommand != null) {
@@ -23,16 +25,20 @@ public class CommandService {
                 ICommand<IBaseCommandData> command = current.getCommand();
                 IBaseCommandData commandData = commandServiceData.getDataForCommand(command);
                 command.execute(commandData);
-                TransitionInfo previous = current;
+
+                INextCommandAware previous = current;
+                if (command instanceof INextCommandAware) {
+                    previous = (INextCommandAware) command;
+                }
+
                 current = null;
 
-                if (commandData.getDeploymentState() == DeploymentState.Success &&
-                        previous.getSuccess() != null) {
+                final DeploymentState state = commandData.getDeploymentState();
+                if (state == DeploymentState.Success && previous.getSuccess() != null) {
                     current = commands.get(previous.getSuccess());
-                } else if (commandData.getDeploymentState() == DeploymentState.UnSuccessful &&
-                        previous.getFail() != null) {
+                } else if (state == DeploymentState.UnSuccessful && previous.getFail() != null) {
                     current = commands.get(previous.getFail());
-                } else if (commandData.getDeploymentState() == DeploymentState.HasError) {
+                } else if (state == DeploymentState.HasError) {
                     return false;
                 }
             }
@@ -41,5 +47,9 @@ public class CommandService {
         }
 
         return false;
+    }
+
+    private CommandService() {
+        // hide constructor
     }
 }

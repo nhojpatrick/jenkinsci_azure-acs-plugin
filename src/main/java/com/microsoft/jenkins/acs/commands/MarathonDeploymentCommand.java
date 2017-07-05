@@ -1,129 +1,89 @@
-/**
+/*
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See License.txt in the project root for
  * license information.
  */
+
 package com.microsoft.jenkins.acs.commands;
 
-import com.jcraft.jsch.ChannelExec;
-import com.jcraft.jsch.ChannelSftp;
-import com.jcraft.jsch.JSch;
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.Session;
-import com.jcraft.jsch.SftpException;
-import com.microsoft.jenkins.acs.exceptions.AzureCloudException;
+import com.microsoft.jenkins.acs.JobContext;
+import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.JsonHelper;
+import hudson.FilePath;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Calendar;
 
 public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCommand.IMarathonDeploymentCommandData> {
     @Override
-    public void execute(MarathonDeploymentCommand.IMarathonDeploymentCommandData context) {
-        String host = context.getMgmtFQDN();
-        String sshFile = context.getSshKeyFileLocation();
-        String filePassword = context.getSshKeyFilePassword();
-        String linuxAdminUsername = context.getLinuxAdminUsername();
-        String marathonConfigFile = context.getMarathonConfigFile();
+    public void execute(final IMarathonDeploymentCommandData context) {
+        final String host = context.getMgmtFQDN();
+        final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
+        final String linuxAdminUsername = context.getLinuxAdminUsername();
+        final String relativeFilePath = context.getConfigFilePaths();
+        final JobContext jobContext = context.jobContext();
 
-        Session session = null;
+        JSchClient client = null;
         try {
-            JSch jsch = new JSch();
-
-            java.util.Properties config = new java.util.Properties();
-            config.put("StrictHostKeyChecking", "no");
-            jsch.addIdentity(sshFile, filePassword);
-            session = jsch.getSession(linuxAdminUsername, host, 2200);
-            session.setConfig(config);
-            session.connect();
-
-            ChannelSftp channel = null;
-            channel = (ChannelSftp) session.openChannel("sftp");
-            channel.connect();
-            String appId = JsonHelper.getId(marathonConfigFile);
-            String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
-            context.logStatus("Copying marathon file to remote file: " + deployedFilename);
-            try {
-                channel.put(marathonConfigFile, deployedFilename);
-            } catch (SftpException e) {
-                context.logError("Error creating remote file:", e);
+            FilePath[] configPaths = context.jobContext().workspacePath().list(relativeFilePath);
+            if (configPaths == null || configPaths.length == 0) {
+                context.logError(Messages.MarathonDeploymentCommand_configNotFoundAt(relativeFilePath));
                 return;
             }
-            channel.disconnect();
 
-            //ignore if app does not exist
-            context.logStatus(String.format("Deleting application with appId: '%s' if it exists", appId));
-            this.executeCommand(session, "curl -X DELETE http://localhost/marathon/v2/apps/" + appId, context);
-            context.logStatus(String.format("Deploying file '%s' with appId to marathon.", deployedFilename, appId));
-            this.executeCommand(session, "curl -i -H 'Content-Type: application/json' -d@" + deployedFilename + " http://localhost/marathon/v2/apps", context);
+            client = new JSchClient(host, Constants.DCOS_SSH_PORT, linuxAdminUsername, sshCredentials, context);
+
+            for (FilePath configPath : configPaths) {
+                String deployedFilename = "acsDep" + Calendar.getInstance().getTimeInMillis() + ".json";
+                context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
+                        configPath.toURI(), client.getHost(), deployedFilename));
+                client.copyTo(
+                        jobContext.replaceMacro(configPath.read(), context.isEnableConfigSubstitution()),
+                        deployedFilename);
+
+                String appId = JsonHelper.getId(configPath.read());
+                //ignore if app does not exist
+                context.logStatus(Messages.MarathonDeploymentCommand_deletingApp(appId));
+                client.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);
+                context.logStatus(Messages.MarathonDeploymentCommand_deployingApp(deployedFilename, appId));
+                // NB. about "?force=true"
+                // Sometimes the deployment gets rejected after the previous delete of the same application ID
+                // with the following message:
+                //
+                // App is locked by one or more deployments. Override with the option '?force=true'.
+                // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
+                client.execRemote("curl -i -H 'Content-Type: application/json' -d@"
+                        + deployedFilename + " http://localhost/marathon/v2/apps?force=true");
+
+                context.logStatus(Messages.MarathonDeploymentCommand_removeTempFile(deployedFilename));
+                client.execRemote("rm -f " + deployedFilename);
+            }
             context.setDeploymentState(DeploymentState.Success);
-        } catch (InterruptedException ie) {
-            throw new RuntimeException(ie);
-        } catch (Exception e) {
-            context.logError("Error deploying application to marathon:", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            context.logError(e);
+        } catch (JSchException | IOException e) {
+            context.logError(e);
         } finally {
-            if (session != null) {
-                session.disconnect();
+            if (client != null) {
+                client.close();
             }
-        }
-    }
-
-    private void executeCommand(Session session, String command, IBaseCommandData context)
-            throws IOException, JSchException, AzureCloudException, InterruptedException {
-        ChannelExec execChnl = (ChannelExec) session.openChannel("exec");
-        execChnl.setCommand(command);
-
-        context.logStatus("==> exec: " + command);
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-
-        execChnl.connect();
-        InputStream in = execChnl.getInputStream();
-
-        try {
-            while (true) {
-                do {
-                    // blocks on IO
-                    int len = in.read(buffer, 0, buffer.length);
-                    if (len < 0) {
-                        break;
-                    }
-                    output.write(buffer, 0, len);
-                } while (in.available() > 0);
-
-                if (execChnl.isClosed()) {
-                    if (in.available() > 0) {
-                        continue;
-                    }
-                    if (execChnl.getExitStatus() < 0) {
-                        throw new AzureCloudException("Error building or running docker image. Process exected with status: " +
-                                execChnl.getExitStatus());
-                    }
-                    context.logStatus("<== exit status: " + execChnl.getExitStatus());
-                    break;
-                }
-            }
-            String serverOutput = output.toString("UTF-8");
-            context.logStatus("<== " + serverOutput);
-        } finally {
-            execChnl.disconnect();
         }
     }
 
     public interface IMarathonDeploymentCommandData extends IBaseCommandData {
-        String getDnsNamePrefix();
-
         String getMgmtFQDN();
-
-        String getSshKeyFileLocation();
-
-        String getSshKeyFilePassword();
 
         String getLinuxAdminUsername();
 
-        String getMarathonConfigFile();
+        SSHUserPrivateKey getSshCredentials();
+
+        String getConfigFilePaths();
+
+        boolean isEnableConfigSubstitution();
     }
 }
