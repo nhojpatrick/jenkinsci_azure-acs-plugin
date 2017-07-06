@@ -3,25 +3,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.Page;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.network.LoadBalancer;
-import com.microsoft.azure.management.network.LoadBalancerBackend;
-import com.microsoft.azure.management.network.LoadBalancerFrontend;
-import com.microsoft.azure.management.network.LoadBalancerHttpProbe;
-import com.microsoft.azure.management.network.LoadBalancerInboundNatPool;
-import com.microsoft.azure.management.network.LoadBalancerInboundNatRule;
-import com.microsoft.azure.management.network.LoadBalancerPrivateFrontend;
-import com.microsoft.azure.management.network.LoadBalancerPublicFrontend;
-import com.microsoft.azure.management.network.LoadBalancerTcpProbe;
-import com.microsoft.azure.management.network.LoadBalancers;
-import com.microsoft.azure.management.network.LoadBalancingRule;
-import com.microsoft.azure.management.network.LoadDistribution;
-import com.microsoft.azure.management.network.Network;
-import com.microsoft.azure.management.network.NetworkSecurityGroup;
-import com.microsoft.azure.management.network.NetworkSecurityGroups;
-import com.microsoft.azure.management.network.NetworkSecurityRule;
-import com.microsoft.azure.management.network.Protocol;
-import com.microsoft.azure.management.network.PublicIPAddress;
-import com.microsoft.azure.management.network.TransportProtocol;
+import com.microsoft.azure.management.network.*;
 import com.microsoft.azure.management.resources.fluentcore.model.Creatable;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
 import com.microsoft.rest.RestException;
@@ -49,10 +31,13 @@ import static org.mockito.Mockito.when;
 
 public class EnablePortCommandTest {
 
-    private NetworkSecurityRule mockNetworkSecurityRule(final int priority, final String destinationPortRange) {
+    private NetworkSecurityRule mockNetworkSecurityRule(final int priority, final String destinationPortRange,
+                                                        SecurityRuleAccess access, SecurityRuleDirection direction) {
         final NetworkSecurityRule rule = mock(NetworkSecurityRule.class);
         when(rule.destinationPortRange()).thenReturn(destinationPortRange);
         when(rule.priority()).thenReturn(priority);
+        when(rule.access()).thenReturn(access);
+        when(rule.direction()).thenReturn(direction);
         return rule;
     }
 
@@ -60,7 +45,7 @@ public class EnablePortCommandTest {
     public void filterPortsToOpen_RuleAllowAll() throws EnablePortCommand.InvalidConfigException {
         final IBaseCommandData context = mock(IBaseCommandData.class);
         final Collection<NetworkSecurityRule> rules = Arrays.asList(
-            mockNetworkSecurityRule(10, "*")
+            mockNetworkSecurityRule(10, "*", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
         final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
 
@@ -73,7 +58,7 @@ public class EnablePortCommandTest {
     public void filterPortsToOpen_RuleRange() throws EnablePortCommand.InvalidConfigException {
         final IBaseCommandData context = mock(IBaseCommandData.class);
         final Collection<NetworkSecurityRule> rules = Arrays.asList(
-            mockNetworkSecurityRule(10, "8000-9000")
+            mockNetworkSecurityRule(10, "8000-9000", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
         final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080, 9090));
 
@@ -86,7 +71,7 @@ public class EnablePortCommandTest {
     public void filterPortsToOpen_RuleRangeInvalidNumberFormat() throws EnablePortCommand.InvalidConfigException {
         final IBaseCommandData context = mock(IBaseCommandData.class);
         final Collection<NetworkSecurityRule> rules = Arrays.asList(
-                mockNetworkSecurityRule(10, "8081-xx")
+                mockNetworkSecurityRule(10, "8081-xx", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
         final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
 
@@ -102,14 +87,40 @@ public class EnablePortCommandTest {
     public void filterPortsToOpen_RuleSingle() throws EnablePortCommand.InvalidConfigException {
         final IBaseCommandData context = mock(IBaseCommandData.class);
         final Collection<NetworkSecurityRule> rules = Arrays.asList(
-                mockNetworkSecurityRule(20, "8080"),
-                mockNetworkSecurityRule(10, "8081")
+                mockNetworkSecurityRule(20, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND),
+                mockNetworkSecurityRule(10, "8081", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
         final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080, 8081, 8082));
 
         final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
         Assert.assertEquals(20, maxPriority);
         Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8082)), portsToOpen);
+    }
+
+    @Test
+    public void filterPortsToOpen_RuleDeny() throws EnablePortCommand.InvalidConfigException {
+        final IBaseCommandData context = mock(IBaseCommandData.class);
+        final Collection<NetworkSecurityRule> rules = Arrays.asList(
+                mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.DENY, SecurityRuleDirection.INBOUND)
+        );
+        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        Assert.assertEquals(10, maxPriority);
+        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8080)), portsToOpen);
+    }
+
+    @Test
+    public void filterPortsToOpen_RuleOutbound() throws EnablePortCommand.InvalidConfigException {
+        final IBaseCommandData context = mock(IBaseCommandData.class);
+        final Collection<NetworkSecurityRule> rules = Arrays.asList(
+                mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.OUTBOUND)
+        );
+        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        Assert.assertEquals(10, maxPriority);
+        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8080)), portsToOpen);
     }
 
     private NetworkSecurityGroup mockNetworkSecurityGroup(String name, Map<String, NetworkSecurityRule> rulesSet) {
@@ -146,8 +157,8 @@ public class EnablePortCommandTest {
         final IBaseCommandData context = mock(IBaseCommandData.class);
 
         final Map<String, NetworkSecurityRule> rulesSet = new HashMap<String, NetworkSecurityRule>();
-        rulesSet.put("rule1", mockNetworkSecurityRule(10, "8080") );
-        rulesSet.put("rule2", mockNetworkSecurityRule(20, "8081") );
+        rulesSet.put("rule1", mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND));
+        rulesSet.put("rule2", mockNetworkSecurityRule(20, "8081", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND));
 
         final NetworkSecurityGroup nsg = mockNetworkSecurityGroup("dcos-agent-public-nsg-xxx", rulesSet);
         final Azure azureClient = mockAzureClientWithNetworkSecurityGroups(Arrays.asList(nsg));
@@ -172,7 +183,7 @@ public class EnablePortCommandTest {
         verify(update
             .defineRule("Allow_" + 8082)
             .allowInbound()
-            .fromAnyAddress()
+            .fromAddress("Internet")
             .fromAnyPort()
             .toAnyAddress()
             .toPort(8082)
@@ -184,7 +195,7 @@ public class EnablePortCommandTest {
         verify(update
                 .defineRule("Allow_" + 8083)
                 .allowInbound()
-                .fromAnyAddress()
+                .fromAddress("Internet")
                 .fromAnyPort()
                 .toAnyAddress()
                 .toPort(8083)

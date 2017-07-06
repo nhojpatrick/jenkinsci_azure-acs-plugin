@@ -15,6 +15,8 @@ import com.microsoft.azure.management.network.LoadBalancingRule;
 import com.microsoft.azure.management.network.LoadDistribution;
 import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
+import com.microsoft.azure.management.network.SecurityRuleAccess;
+import com.microsoft.azure.management.network.SecurityRuleDirection;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
@@ -76,8 +78,21 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 maxPriority = priority;
             }
 
-            final String ruleDestPortRange = rule.destinationPortRange();
+            if (rule.direction() != SecurityRuleDirection.INBOUND) {
+                // Ignore outbound rules
+                continue;
+            }
 
+            if (rule.access() != SecurityRuleAccess.ALLOW) {
+                // If user denied a port explicitly, we honor this rule and won't disable or modify it automatically
+                // even it might be in our ports-to-open list, as it's hard for us to guess the user's intention without
+                // knowledge of network topology and application details. So we just ignore it here.
+                // If we create a conflicted allow rule later, it should have a higher priority number, which means
+                // lower priority. It will have no affect in the worst case.
+                continue;
+            }
+
+            final String ruleDestPortRange = rule.destinationPortRange();
             if (ruleDestPortRange.equals("*")) {
                 // Already allow all
                 context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowAll(
@@ -173,7 +188,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
             update.defineRule(ruleName)
                     .allowInbound()
-                    .fromAnyAddress()
+                    .fromAddress("Internet")
                     .fromAnyPort()
                     .toAnyAddress()
                     .toPort(port)
