@@ -20,11 +20,6 @@
         <c:select expressionAllowed="false"/>
     </f:entry>
 
-    <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace"
-             help="/plugin/azure-acs/help-kubernetesNamespace.html">
-        <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" clazz="kubernetes-optional"/>
-    </f:entry>
-
     <f:entry title="${%configFilePaths_title}" field="configFilePaths"
              help="/plugin/azure-acs/help-configFilePaths.html">
         <f:textbox/>
@@ -33,6 +28,16 @@
     <f:entry title="${%enableConfigSubstitution_title}" field="enableConfigSubstitution"
              help="/plugin/azure-acs/help-enableConfigSubstitution.html">
         <f:checkbox/>
+    </f:entry>
+
+    <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace"
+             help="/plugin/azure-acs/help-kubernetesNamespace.html">
+        <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" clazz="kubernetes-optional"/>
+    </f:entry>
+
+    <f:entry title="${%swarmRemoveContainersFirst_title}" field="swarmRemoveContainersFirst"
+             help="/plugin/azure-acs/help-swarmRemoveContainersFirst.html">
+        <f:checkbox default="false" />
     </f:entry>
 
     <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"

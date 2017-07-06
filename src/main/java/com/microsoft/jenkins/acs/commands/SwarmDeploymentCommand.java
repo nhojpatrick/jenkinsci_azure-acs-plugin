@@ -39,6 +39,11 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
                         jobContext.replaceMacro(configFile.read(), context.isEnableConfigSubstitution()),
                         deployedFilename);
 
+                if (context.getSwarmRemoveContainersFirst()) {
+                    context.logStatus(Messages.SwarmDeploymentCommand_removingDockerContainers());
+                    client.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f %s down", deployedFilename));
+                }
+
                 // Note that we have to specify DOCKER_HOST in the command rather than using `ChannelExec.setEnv`
                 // as the latter one sets environment variable through SSH protocol but the default sshd_config
                 // doesn't allow this
@@ -72,5 +77,7 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
         DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
 
         boolean isEnableConfigSubstitution();
+
+        boolean getSwarmRemoveContainersFirst();
     }
 }

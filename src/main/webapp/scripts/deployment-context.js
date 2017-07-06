@@ -1,18 +1,28 @@
 Behaviour.specify("select[name$=containerService]", 'hide-optional-based-on-orchestrator', 10000, function(select) {
-    function handle_change() {
+    function handleChange() {
         var value = $(select).getValue();
-        var c = findNearBy(select, 'kubernetesNamespace');
+
+        var isKubernetes = /\|\s*kubernetes$/i.test(value);
+        var isSwarm = /\|\s*swarm$/i.test(value);
+
+        setElementVisibility('kubernetesNamespace', isKubernetes);
+        setElementVisibility('swarmRemoveContainersFirst', isSwarm);
+    }
+
+    function setElementVisibility(name, show) {
+        var c = findNearBy(select, name);
         if (c === null) {
             return;
         }
-        if (/\|\s*kubernetes$/i.test(value)) {
+
+        if (show) {
             $(c).up('tr').show();
         } else {
             $(c).up('tr').hide();
         }
     }
 
-    handle_change();
-    $(select).on('change', handle_change);
-    $(select).on('click', handle_change);
+    handleChange();
+    $(select).on('change', handleChange);
+    $(select).on('click', handleChange);
 });

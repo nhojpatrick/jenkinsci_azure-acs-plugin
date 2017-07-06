@@ -182,7 +182,7 @@ public class JSchClient {
                         continue;
                     }
                     log(Messages.JSchClient_commandExitStatus(channel.getExitStatus()));
-                    if (channel.getExitStatus() < 0) {
+                    if (channel.getExitStatus() != 0) {
                         throw new RuntimeException(Messages.JSchClient_errorExecution(channel.getExitStatus()));
                     }
                     break;

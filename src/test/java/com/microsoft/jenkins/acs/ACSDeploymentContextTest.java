@@ -12,7 +12,7 @@ public class ACSDeploymentContextTest {
 
     @Test
     public void commandDataCast() {
-        ACSDeploymentContext context = new ACSDeploymentContext("", "", "", "", "", "", false);
+        ACSDeploymentContext context = new ACSDeploymentContext("", "", "", "", "");
 
         GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData getInfoData = (GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData) context;
         DeploymentChoiceCommand.IDeploymentChoiceCommandData choiceData = (DeploymentChoiceCommand.IDeploymentChoiceCommandData) context;

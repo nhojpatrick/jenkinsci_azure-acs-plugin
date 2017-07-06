@@ -50,6 +50,7 @@ import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 
 import javax.annotation.Nonnull;
@@ -71,9 +72,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private final String resourceGroupName;
     private final String containerService;
     private final String sshCredentialsId;
-    private final String kubernetesNamespace;
     private final String configFilePaths;
-    private final boolean enableConfigSubstitution;
+
+    private boolean enableConfigSubstitution;
+    private String kubernetesNamespace;
+    private boolean swarmRemoveContainersFirst;
 
     private transient Azure azureClient;
     private transient String mgmtFQDN;
@@ -87,16 +90,12 @@ public class ACSDeploymentContext extends AbstractBaseContext
             final String resourceGroupName,
             final String containerService,
             final String sshCredentialsId,
-            final String kubernetesNamespace,
-            final String configFilePaths,
-            final boolean enableConfigSubstitution) {
+            final String configFilePaths) {
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = resourceGroupName;
         this.containerService = containerService;
         this.sshCredentialsId = sshCredentialsId;
-        this.kubernetesNamespace = kubernetesNamespace;
         this.configFilePaths = configFilePaths;
-        this.enableConfigSubstitution = enableConfigSubstitution;
     }
 
     @Override
@@ -217,9 +216,29 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return kubernetesNamespace;
     }
 
+    @DataBoundSetter
+    public void setKubernetesNamespace(final String kubernetesNamespace) {
+        this.kubernetesNamespace = kubernetesNamespace;
+    }
+
+    @Override
+    public boolean getSwarmRemoveContainersFirst() {
+        return this.swarmRemoveContainersFirst;
+    }
+
+    @DataBoundSetter
+    public void setSwarmRemoveContainersFirst(final boolean swarmRemoveContainersFirst) {
+        this.swarmRemoveContainersFirst = swarmRemoveContainersFirst;
+    }
+
     @Override
     public boolean isEnableConfigSubstitution() {
         return enableConfigSubstitution;
+    }
+
+    @DataBoundSetter
+    public void setEnableConfigSubstitution(final boolean enableConfigSubstitution) {
+        this.enableConfigSubstitution = enableConfigSubstitution;
     }
 
     public void configure(
