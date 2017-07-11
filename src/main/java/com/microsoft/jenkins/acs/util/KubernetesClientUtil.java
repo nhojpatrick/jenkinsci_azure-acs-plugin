@@ -35,6 +35,8 @@ public final class KubernetesClientUtil {
      * @param namespace                The namespace that the components should be created / updated
      * @param configFiles              The configuration files to be deployed
      * @param enableConfigSubstitution Is environment variable substitution in config enabled?
+     * @throws IOException          exception on IO
+     * @throws InterruptedException interruption happened during blocking IO operations
      */
     public static void apply(
             final JobContext jobContext,
@@ -89,6 +91,7 @@ public final class KubernetesClientUtil {
      * @param kubernetesNamespace The namespace that the Secret should be created / updated
      * @param secretName          The name of the Secret
      * @param credentials         All the configured credentials
+     * @throws IOException exception on IO
      * @see <a href="https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry">
      * Pull an Image from a Private Registry
      * </a>

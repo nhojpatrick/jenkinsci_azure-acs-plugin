@@ -43,14 +43,6 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
     }
 
     @Override
-    public boolean needsToRunAfterFinalized() {
-        /*
-         * This should be run before the build is finalized.
-         */
-        return false;
-    }
-
-    @Override
     public void perform(
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
@@ -79,11 +71,10 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
      * Descriptor for ACSDeployRecorderDescriptor. Used as a singleton.
      * The class is marked as public so that it can be accessed from views.
      * <p>
-     * <p>
      * See <tt>src/main/resources/hudson/plugins/hello_world/HelloWorldBuilder/*.jelly</tt>
      * for the actual HTML fragment for the configuration screen.
      */
-    @Extension // This indicates to Jenkins that this is an implementation of an extension point.
+    @Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
 
         public boolean isApplicable(final Class<? extends AbstractProject> aClass) {
@@ -95,7 +86,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return Messages.ACSDeploymentRecorder_displayName();
+            return Messages.plugin_displayName();
         }
     }
 }
