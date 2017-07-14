@@ -12,6 +12,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public final class Constants {
     public static final String INVALID_OPTION = "*";
@@ -35,12 +36,39 @@ public final class Constants {
 
     public static final int READ_BUFFER_SIZE = 1024;
 
+    /**
+     * Length limit for the Kubernetes names.
+     *
+     * @see <a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/names/">
+     * Kubernetes Names
+     * </a>
+     */
+    public static final int KUBERNETES_NAME_LENGTH_LIMIT = 253;
+
+    /**
+     * Pattern for the Kubernetes names.
+     *
+     * @see <a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/names/">
+     * Kubernetes Names
+     * </a>
+     */
+    public static final Pattern KUBERNETES_NAME_PATTERN =
+            Pattern.compile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$");
+
+    public static final String KUBERNETES_SECRET_NAME_PREFIX = "acs-plugin-";
+    public static final String KUBERNETES_SECRET_NAME_PROP = "KUBERNETES_SECRET_NAME";
+
+    public static final String MARATHON_DOCKER_CFG_ARCHIVE = "docker.tar.gz";
+
+    public static final String MARATHON_DOCKER_CFG_ARCHIVE_URI = "MARATHON_DOCKER_CFG_ARCHIVE_URI";
+
     public static final Set<ContainerServiceOchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
             ContainerServiceOchestratorTypes.KUBERNETES,
             ContainerServiceOchestratorTypes.DCOS,
             ContainerServiceOchestratorTypes.SWARM
     ));
 
+    public static final int DEFAULT_SSH_PORT = 22;
     public static final int DCOS_SSH_PORT = 2200;
     public static final int KUBERNETES_SSH_PORT = 22;
     public static final int SWARM_SSH_PORT = 2200;

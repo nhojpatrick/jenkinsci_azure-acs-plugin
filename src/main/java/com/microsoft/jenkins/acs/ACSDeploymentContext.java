@@ -22,7 +22,7 @@ import com.microsoft.jenkins.acs.commands.CheckBuildResultCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
-import com.microsoft.jenkins.acs.commands.GetContainserServiceInfoCommand;
+import com.microsoft.jenkins.acs.commands.GetContainerServiceInfoCommand;
 import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
@@ -36,7 +36,9 @@ import com.microsoft.jenkins.acs.orchestrators.MarathonDeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.SwarmDeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.acs.util.DeployHelper;
 import com.microsoft.jenkins.acs.util.JSchClient;
+import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -50,6 +52,7 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
@@ -57,13 +60,14 @@ import org.kohsuke.stapler.QueryParameter;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
 
 public class ACSDeploymentContext extends AbstractBaseContext
         implements CheckBuildResultCommand.ICheckBuildResultCommandData,
-        GetContainserServiceInfoCommand.IGetContainserServiceInfoCommandData,
+        GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
@@ -82,11 +86,18 @@ public class ACSDeploymentContext extends AbstractBaseContext
     private String kubernetesNamespace;
     private boolean swarmRemoveContainersFirst;
 
+    private String secretName;
+    private String dcosDockerCredentialsPath;
+    private boolean dcosDockerCredenditalsPathShared;
+    private List<DockerRegistryEndpoint> containerRegistryCredentials;
+
     private transient Azure azureClient;
     private transient String mgmtFQDN;
     private transient String linuxAdminUsername;
     private transient ContainerServiceOchestratorTypes orchestratorType;
     private transient SSHUserPrivateKey sshCredentials;
+
+    private transient DeploymentConfig deploymentConfig;
 
     @DataBoundConstructor
     public ACSDeploymentContext(
@@ -98,14 +109,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
             final String configFilePaths) {
         this.runOn = runOn;
         this.azureCredentialsId = azureCredentialsId;
-        this.resourceGroupName = resourceGroupName;
-        this.containerService = containerService;
+        this.resourceGroupName = StringUtils.trimToEmpty(resourceGroupName);
+        this.containerService = StringUtils.trimToEmpty(containerService);
         this.sshCredentialsId = sshCredentialsId;
-        this.configFilePaths = configFilePaths;
+        this.configFilePaths = StringUtils.trimToEmpty(configFilePaths);
     }
 
     @Override
     public Descriptor<ACSDeploymentContext> getDescriptor() {
+        //noinspection ConstantConditions
         return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
     }
 
@@ -122,25 +134,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return azureCredentialsId;
     }
 
-    @Override
     public String getConfigFilePaths() {
         return this.configFilePaths;
     }
 
     @Override
-    public DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException {
-        final String expandedConfigFilePaths = jobContext().envVars().expand(configFilePaths);
-        final FilePath[] configFiles = jobContext().getWorkspace().list(expandedConfigFilePaths);
-
-        if (orchestratorType.equals(ContainerServiceOchestratorTypes.DCOS)) {
-            return new MarathonDeploymentConfig(configFiles);
-        } else if (orchestratorType.equals(ContainerServiceOchestratorTypes.KUBERNETES)) {
-            return new KubernetesDeploymentConfig(configFiles);
-        } else if (orchestratorType.equals(ContainerServiceOchestratorTypes.SWARM)) {
-            return new SwarmDeploymentConfig(configFiles);
-        } else {
-            return null;
-        }
+    public DeploymentConfig getDeploymentConfig() {
+        return deploymentConfig;
     }
 
     public String getSshCredentialsId() {
@@ -233,11 +233,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @DataBoundSetter
     public void setKubernetesNamespace(final String kubernetesNamespace) {
-        this.kubernetesNamespace = kubernetesNamespace;
+        this.kubernetesNamespace = StringUtils.trimToEmpty(kubernetesNamespace);
     }
 
     @Override
-    public boolean getSwarmRemoveContainersFirst() {
+    public boolean isSwarmRemoveContainersFirst() {
         return this.swarmRemoveContainersFirst;
     }
 
@@ -256,20 +256,69 @@ public class ACSDeploymentContext extends AbstractBaseContext
         this.enableConfigSubstitution = enableConfigSubstitution;
     }
 
+    @Override
+    public String getSecretName() {
+        return secretName;
+    }
+
+    @DataBoundSetter
+    public void setSecretName(final String secretName) {
+        this.secretName = StringUtils.trimToEmpty(secretName);
+    }
+
+    @Override
+    public String getDcosDockerCredentialsPath() {
+        return dcosDockerCredentialsPath;
+    }
+
+    @DataBoundSetter
+    public void setDcosDockerCredentialsPath(final String dcosDockerCredentialsPath) {
+        this.dcosDockerCredentialsPath = StringUtils.trimToEmpty(dcosDockerCredentialsPath);
+    }
+
+    @Override
+    public boolean isDcosDockerCredenditalsPathShared() {
+        return dcosDockerCredenditalsPathShared;
+    }
+
+    @DataBoundSetter
+    public void setDcosDockerCredenditalsPathShared(final boolean dcosDockerCredenditalsPathShared) {
+        this.dcosDockerCredenditalsPathShared = dcosDockerCredenditalsPathShared;
+    }
+
+    public List<DockerRegistryEndpoint> getContainerRegistryCredentials() {
+        if (containerRegistryCredentials == null) {
+            return new ArrayList<>(0);
+        }
+        return containerRegistryCredentials;
+    }
+
+    @DataBoundSetter
+    public void setContainerRegistryCredentials(final List<DockerRegistryEndpoint> containerRegistryCredentials) {
+        List<DockerRegistryEndpoint> endpoints = new ArrayList<>();
+        for (DockerRegistryEndpoint endpoint : containerRegistryCredentials) {
+            if (endpoint.getUrl() != null && endpoint.getCredentialsId() != null) {
+                endpoints.add(endpoint);
+            }
+        }
+        this.containerRegistryCredentials = endpoints;
+    }
+
     public void configure(
             @Nonnull final Run<?, ?> run,
             @Nonnull final FilePath workspace,
             @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException {
+            @Nonnull final TaskListener listener) throws IOException, InterruptedException {
+
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
         Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
 
         commands.put(CheckBuildResultCommand.class,
-                new TransitionInfo(new CheckBuildResultCommand(), GetContainserServiceInfoCommand.class, null));
+                new TransitionInfo(new CheckBuildResultCommand(), GetContainerServiceInfoCommand.class, null));
 
-        commands.put(GetContainserServiceInfoCommand.class,
-                new TransitionInfo(new GetContainserServiceInfoCommand(), DeploymentChoiceCommand.class, null));
+        commands.put(GetContainerServiceInfoCommand.class,
+                new TransitionInfo(new GetContainerServiceInfoCommand(), DeploymentChoiceCommand.class, null));
 
         // DeploymentChoiceCommand will point out the next step through INextCommandAware
         commands.put(DeploymentChoiceCommand.class,
@@ -289,10 +338,35 @@ public class ACSDeploymentContext extends AbstractBaseContext
         commands.put(EnablePortCommand.class,
                 new TransitionInfo(new EnablePortCommand(), null, null));
 
+        final JobContext jobContext = new JobContext(run, workspace, launcher, listener);
         super.configure(
-                new JobContext(run, workspace, launcher, listener),
+                jobContext,
                 commands,
                 CheckBuildResultCommand.class);
+
+        // Build DeploymentConfig
+        final EnvVars envVars = jobContext().envVars();
+        final String expandedConfigFilePaths = envVars.expand(getConfigFilePaths());
+        final FilePath[] configFiles = jobContext.workspacePath().list(expandedConfigFilePaths);
+        if (configFiles.length == 0) {
+            throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(getConfigFilePaths()));
+        }
+
+        switch (getOrchestratorType()) {
+            case DCOS:
+                deploymentConfig = new MarathonDeploymentConfig(configFiles);
+                break;
+            case KUBERNETES:
+                deploymentConfig = new KubernetesDeploymentConfig(configFiles);
+                break;
+            case SWARM:
+                deploymentConfig = new SwarmDeploymentConfig(configFiles);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        Messages.ACSDeploymentContext_orchestratorNotSupported(getOrchestratorType()));
+        }
+
         this.setDeploymentState(DeploymentState.Running);
     }
 
@@ -368,22 +442,12 @@ public class ACSDeploymentContext extends AbstractBaseContext
     @Extension
     public static final class DescriptorImpl extends Descriptor<ACSDeploymentContext> {
         public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
-            List<AzureCredentials> credentials;
-            if (owner == null) {
-                credentials = CredentialsProvider.lookupCredentials(
-                        AzureCredentials.class,
-                        Jenkins.getInstance(),
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList()
-                );
-            } else {
-                credentials = CredentialsProvider.lookupCredentials(
-                        AzureCredentials.class,
-                        owner,
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList()
-                );
-            }
+            List<AzureCredentials> credentials = CredentialsProvider.lookupCredentials(
+                    AzureCredentials.class,
+                    owner,
+                    ACL.SYSTEM,
+                    Collections.<DomainRequirement>emptyList()
+            );
             StandardListBoxModel model = new StandardListBoxModel();
             model.add(Messages.ACSDeploymentContext_selectAzureCredentials(), Constants.INVALID_OPTION);
             model.withAll(credentials);
@@ -551,6 +615,78 @@ public class ACSDeploymentContext extends AbstractBaseContext
             }
             ListBoxModel m = new StandardListBoxModel().withAll(credentials);
             return m;
+        }
+
+        public FormValidation doCheckSecretName(
+                @QueryParameter final String containerService,
+                @QueryParameter final String value) {
+            String name = StringUtils.trimToEmpty(value);
+            if (StringUtils.isEmpty(name)) {
+                return FormValidation.ok();
+            }
+
+            ContainerServiceOchestratorTypes orchestratorType;
+            try {
+                orchestratorType = ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
+            } catch (IllegalArgumentException e) {
+                // orchestrator type not determined, skip check
+                return FormValidation.ok();
+            }
+            if (orchestratorType != ContainerServiceOchestratorTypes.KUBERNETES) {
+                return FormValidation.ok();
+            }
+
+            String variableStripped = DeployHelper.removeVariables(name);
+            if (variableStripped.length() > Constants.KUBERNETES_NAME_LENGTH_LIMIT) {
+                return FormValidation.error(Messages.ACSDeploymentContext_secretNameTooLong());
+            }
+
+            // Replace the variables with a single character valid name "a", and then check if it matches the pattern.
+            // This will check if the static part of the secret name is valid at the configuration time.
+            String variableReplaced = DeployHelper.replaceVariables(name, "a");
+            if (Constants.KUBERNETES_NAME_PATTERN.matcher(variableReplaced).matches()) {
+                return FormValidation.ok();
+            }
+
+            return FormValidation.error(Messages.ACSDeploymentContext_secretNameNotMatch(
+                    Constants.KUBERNETES_NAME_PATTERN.pattern()));
+        }
+
+        public FormValidation doCheckDcosDockerCredentialsPath(
+                @QueryParameter final String containerService,
+                @QueryParameter final String value) {
+            String path = StringUtils.trimToEmpty(value);
+            if (StringUtils.isEmpty(path)) {
+                return FormValidation.ok();
+            }
+
+            ContainerServiceOchestratorTypes orchestratorType;
+            try {
+                orchestratorType = ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
+            } catch (IllegalArgumentException e) {
+                // orchestrator type not determined, skip check
+                return FormValidation.ok();
+            }
+            if (orchestratorType != ContainerServiceOchestratorTypes.DCOS) {
+                return FormValidation.ok();
+            }
+
+            char first = path.charAt(0);
+            if (first != '/' && first != '$') {
+                return FormValidation.error(Messages.ACSDeploymentContext_onlyAbsolutePathAllowed());
+            }
+
+            String variableStripped = DeployHelper.removeVariables(path);
+            if (StringUtils.isEmpty(variableStripped)) {
+                // the path is constructed purely by variables, we cannot determine its value now.
+                return FormValidation.ok();
+            }
+            if (!DeployHelper.checkURIForMarathon(variableStripped)) {
+                // Return warnings instead error in case Marathon fixed this in future.
+                return FormValidation.ok(Messages.ACSDeploymentContext_uriNotAccepted());
+            }
+
+            return FormValidation.ok();
         }
 
         public String getDefaultKubernetesNamespace() {
