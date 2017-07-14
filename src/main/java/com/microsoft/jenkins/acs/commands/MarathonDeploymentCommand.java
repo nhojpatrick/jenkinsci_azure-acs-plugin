@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.google.common.annotations.VisibleForTesting;
 import com.jcraft.jsch.JSchException;
-import com.microsoft.jenkins.acs.InjectEnvironmentVariablesAction;
 import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
@@ -164,8 +163,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 // inject the environment variable
                 context.logStatus(Messages.MarathonDeploymentCommand_injectEnvironmentVar(
                         Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
-                jobContext.getRun().addAction(
-                        new InjectEnvironmentVariablesAction(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
+                DeployHelper.injectEnvironmentVariable(
+                        jobContext.getRun(), Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
             } finally {
                 dockercfg.delete();
             }
