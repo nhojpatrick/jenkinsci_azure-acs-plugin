@@ -9,11 +9,11 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.annotations.VisibleForTesting;
 import com.jcraft.jsch.JSchException;
-import com.microsoft.jenkins.acs.InjectEnvironmentVariablesAction;
 import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.acs.util.DeployHelper;
 import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.KubernetesClientUtil;
 import hudson.EnvVars;
@@ -86,8 +86,8 @@ public class KubernetesDeploymentCommand
 
                 context.logStatus(Messages.KubernetesDeploymentCommand_injectSecretName(
                         Constants.KUBERNETES_SECRET_NAME_PROP, secretName));
-                jobContext.getRun().addAction(
-                        new InjectEnvironmentVariablesAction(Constants.KUBERNETES_SECRET_NAME_PROP, secretName));
+                DeployHelper.injectEnvironmentVariable(
+                        jobContext.getRun(), Constants.KUBERNETES_SECRET_NAME_PROP, secretName);
             }
 
             externalUtils.applyKubernetesConfig(

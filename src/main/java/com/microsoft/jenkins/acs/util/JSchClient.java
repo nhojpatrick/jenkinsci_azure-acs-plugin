@@ -226,6 +226,7 @@ public class JSchClient {
      * @param remoteHost The agent private IP address.
      * @param remotePort The agent SSH service port, by default this is 22.
      * @return A new client to the agent node with the same credentials
+     * @throws JSchException exception raised from JSch operations
      */
     public JSchClient forwardSSH(final String remoteHost, final int remotePort) throws JSchException {
         int localPort = session.setPortForwardingL(0, remoteHost, remotePort);

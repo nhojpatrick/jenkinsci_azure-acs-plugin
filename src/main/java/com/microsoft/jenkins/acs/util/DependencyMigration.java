@@ -32,6 +32,9 @@ public final class DependencyMigration {
     /**
      * Build {@link AzureEnvironment} (since Azure SDK 1.1.0) from {@link AzureCredentials.ServicePrincipal} (since
      * azure-credentials 1.1).
+     *
+     * @param servicePrincipal the service principal provided by the Azure Credentials plugin
+     * @return The {@link AzureEnvironment} instance suitable for the Azure SDK used in this plugin
      */
     public static AzureEnvironment buildAzureEnvironment(
             final AzureCredentials.ServicePrincipal servicePrincipal) {

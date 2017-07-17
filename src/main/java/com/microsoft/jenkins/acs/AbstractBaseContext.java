@@ -11,10 +11,11 @@ import com.microsoft.jenkins.acs.commands.IBaseCommandData;
 import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.services.ICommandServiceData;
+import org.jenkinsci.plugins.workflow.steps.Step;
 
 import java.util.Hashtable;
 
-public abstract class AbstractBaseContext implements ICommandServiceData {
+public abstract class AbstractBaseContext extends Step implements ICommandServiceData {
     private transient JobContext jobContext;
     private transient DeploymentState deployState = DeploymentState.Unknown;
     private transient Hashtable<Class, TransitionInfo> commands;

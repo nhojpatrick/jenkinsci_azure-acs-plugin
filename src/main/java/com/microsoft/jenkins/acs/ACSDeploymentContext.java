@@ -12,6 +12,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.google.common.collect.ImmutableSet;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
@@ -42,8 +43,6 @@ import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
-import hudson.model.Describable;
-import hudson.model.Descriptor;
 import hudson.model.Item;
 import hudson.model.Run;
 import hudson.model.TaskListener;
@@ -51,8 +50,13 @@ import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
+import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
+import org.jenkinsci.plugins.workflow.steps.StepContext;
+import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
+import org.jenkinsci.plugins.workflow.steps.StepExecution;
+import org.jenkinsci.plugins.workflow.steps.SynchronousNonBlockingStepExecution;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
@@ -64,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Set;
 
 public class ACSDeploymentContext extends AbstractBaseContext
         implements CheckBuildResultCommand.ICheckBuildResultCommandData,
@@ -72,15 +77,15 @@ public class ACSDeploymentContext extends AbstractBaseContext
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
         SwarmDeploymentCommand.ISwarmDeploymentCommandData,
-        DeploymentChoiceCommand.IDeploymentChoiceCommandData,
-        Describable<ACSDeploymentContext> {
+        DeploymentChoiceCommand.IDeploymentChoiceCommandData {
 
-    private final String runOn;
     private final String azureCredentialsId;
     private final String resourceGroupName;
     private final String containerService;
     private final String sshCredentialsId;
     private final String configFilePaths;
+
+    private String runOn;
 
     private boolean enableConfigSubstitution;
     private String kubernetesNamespace;
@@ -101,13 +106,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @DataBoundConstructor
     public ACSDeploymentContext(
-            final String runOn,
             final String azureCredentialsId,
             final String resourceGroupName,
             final String containerService,
             final String sshCredentialsId,
             final String configFilePaths) {
-        this.runOn = runOn;
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = StringUtils.trimToEmpty(resourceGroupName);
         this.containerService = StringUtils.trimToEmpty(containerService);
@@ -116,18 +119,66 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public Descriptor<ACSDeploymentContext> getDescriptor() {
-        //noinspection ConstantConditions
-        return (DescriptorImpl) Jenkins.getInstance().getDescriptorOrDie(ACSDeploymentContext.class);
+    public StepExecution start(final StepContext context) throws Exception {
+        return new ExecutionImpl(new ACSDeploymentRecorder(this), context);
+    }
+
+    @Override
+    public DescriptorImpl getDescriptor() {
+        return (DescriptorImpl) super.getDescriptor();
+    }
+
+    private static final class ExecutionImpl extends SynchronousNonBlockingStepExecution<Void> {
+        private static final long serialVersionUID = 1L;
+
+        private final transient SimpleBuildStep delegate;
+
+        ExecutionImpl(final SimpleBuildStep delegate, final StepContext context) {
+            super(context);
+            this.delegate = delegate;
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        @Override
+        protected Void run() throws Exception {
+            StepContext context = getContext();
+            FilePath workspace = context.get(FilePath.class);
+            workspace.mkdirs();
+            delegate.perform(
+                    context.get(Run.class),
+                    workspace,
+                    context.get(Launcher.class),
+                    context.get(TaskListener.class));
+            return null;
+        }
+
+        @Nonnull
+        @Override
+        public String getStatus() {
+            String base = super.getStatus();
+            if (delegate != null) {
+                return delegate.getClass().getName() + ": " + base;
+            } else {
+                return base;
+            }
+        }
     }
 
     public String getRunOn() {
+        if (StringUtils.isBlank(runOn)) {
+            return getDescriptor().getDefaultRunOn();
+        }
         return runOn;
+    }
+
+    @DataBoundSetter
+    public void setRunOn(final String runOn) {
+        this.runOn = runOn;
     }
 
     @Override
     public RunOn getRunOnOption() {
-        return RunOn.fromString(this.runOn);
+        return RunOn.fromString(getRunOn());
     }
 
     public String getAzureCredentialsId() {
@@ -228,6 +279,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @Override
     public String getKubernetesNamespace() {
+        if (StringUtils.isBlank(kubernetesNamespace)) {
+            return getDescriptor().getDefaultKubernetesNamespace();
+        }
         return kubernetesNamespace;
     }
 
@@ -440,7 +494,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Extension
-    public static final class DescriptorImpl extends Descriptor<ACSDeploymentContext> {
+    public static final class DescriptorImpl extends StepDescriptor {
         public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
             List<AzureCredentials> credentials = CredentialsProvider.lookupCredentials(
                     AzureCredentials.class,
@@ -693,11 +747,25 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return "default";
         }
 
+        public String getDefaultRunOn() {
+            return "Success";
+        }
+
+        @Override
+        public Set<? extends Class<?>> getRequiredContext() {
+            return ImmutableSet.of(Run.class, FilePath.class, Launcher.class, TaskListener.class);
+        }
+
+        @Override
+        public String getFunctionName() {
+            return "acsDeploy";
+        }
+
         /**
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return null;
+            return Messages.plugin_displayName();
         }
     }
 }
