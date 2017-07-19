@@ -12,6 +12,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
@@ -449,9 +450,31 @@ public class ACSDeploymentContext extends AbstractBaseContext
         }
         String[] parts = containerService.split("\\|");
         if (parts.length == 2) {
-            return parts[1].trim();
+            String type = parts[1].trim();
+            if (StringUtils.isNotEmpty(type)) {
+                return type;
+            }
         }
         throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
+    }
+
+    @VisibleForTesting
+    interface CredentailsFinder {
+        AzureCredentials.ServicePrincipal getServicePrincipal(String azureCredentialsId);
+
+        SSHUserPrivateKey getSshCredentials(String sshCredentialsId);
+
+        CredentailsFinder DEFAULT = new CredentailsFinder() {
+            @Override
+            public AzureCredentials.ServicePrincipal getServicePrincipal(final String credentialsId) {
+                return AzureCredentials.getServicePrincipal(credentialsId);
+            }
+
+            @Override
+            public SSHUserPrivateKey getSshCredentials(final String credentialsId) {
+                return ACSDeploymentContext.getSshCredentials(credentialsId);
+            }
+        };
     }
 
     public static String validate(
@@ -460,7 +483,25 @@ public class ACSDeploymentContext extends AbstractBaseContext
             final String containerService,
             final String sshCredentialsId,
             final String kubernetesNamespace) {
-        AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
+        return validate(
+                azureCredentialsId,
+                resourceGroup,
+                containerService,
+                sshCredentialsId,
+                kubernetesNamespace,
+                CredentailsFinder.DEFAULT);
+    }
+
+    @VisibleForTesting
+    static String validate(
+            final String azureCredentialsId,
+            final String resourceGroup,
+            final String containerService,
+            final String sshCredentialsId,
+            final String kubernetesNamespace,
+            final CredentailsFinder credentailsFinder) {
+        AzureCredentials.ServicePrincipal servicePrincipal =
+                credentailsFinder.getServicePrincipal(azureCredentialsId);
 
         if (StringUtils.isBlank(servicePrincipal.getSubscriptionId())) {
             return Messages.ACSDeploymentContext_missingCredentials();
@@ -471,16 +512,17 @@ public class ACSDeploymentContext extends AbstractBaseContext
         if (StringUtils.isBlank(containerService) || Constants.INVALID_OPTION.equals(containerService)) {
             return Messages.ACSDeploymentContext_missingContainerServiceName();
         }
-        if (StringUtils.isBlank(sshCredentialsId) || getSshCredentials(sshCredentialsId) == null) {
+        if (StringUtils.isBlank(sshCredentialsId) || credentailsFinder.getSshCredentials(sshCredentialsId) == null) {
             return Messages.ACSDeploymentContext_missingSSHCredentials();
         }
 
         try {
+            final String orchestratorTypeName = getOrchestratorType(containerService);
             ContainerServiceOchestratorTypes orchestratorType =
-                    ContainerServiceOchestratorTypes.fromString(getOrchestratorType(containerService));
+                    ContainerServiceOchestratorTypes.fromString(orchestratorTypeName);
 
             if (!Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
-                return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorType);
+                return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorTypeName);
             }
 
             if (ContainerServiceOchestratorTypes.KUBERNETES == orchestratorType
