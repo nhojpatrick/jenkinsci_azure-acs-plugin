@@ -538,15 +538,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
     @Extension
     public static final class DescriptorImpl extends StepDescriptor {
         public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
-            List<AzureCredentials> credentials = CredentialsProvider.lookupCredentials(
-                    AzureCredentials.class,
-                    owner,
-                    ACL.SYSTEM,
-                    Collections.<DomainRequirement>emptyList()
-            );
             StandardListBoxModel model = new StandardListBoxModel();
             model.add(Messages.ACSDeploymentContext_selectAzureCredentials(), Constants.INVALID_OPTION);
-            model.withAll(credentials);
+            model.includeAs(ACL.SYSTEM, owner, AzureCredentials.class);
             return model;
         }
 

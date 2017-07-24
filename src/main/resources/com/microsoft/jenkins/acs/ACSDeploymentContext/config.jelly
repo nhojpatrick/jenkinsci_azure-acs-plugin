@@ -46,7 +46,7 @@
         </f:entry>
 
         <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"
-                          with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId"/>
+                          with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId,kubernetesNamespace"/>
 
     </f:section>
 
@@ -60,7 +60,7 @@
         <f:entry title="${%dcosDockerCredenditalsPathShared_title}" field="dcosDockerCredenditalsPathShared">
             <f:checkbox/>
         </f:entry>
-        <f:entry title="${%containerRegistryCredentials_title}">
+        <f:entry title="${%containerRegistryCredentials_title}" field="containerRegistryCredentials">
             <f:repeatableProperty field="containerRegistryCredentials">
                 <f:entry title="">
                     <div align="right">

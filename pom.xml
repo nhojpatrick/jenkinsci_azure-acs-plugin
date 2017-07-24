@@ -28,10 +28,9 @@
 
     <name>Azure Container Service Plugin</name>
     <description>
-        Deploy Kubernetes or Marathon configurations to Azure Container Service cluster with Kubernetes or DC/OS
-        orchestrator.
+        Deploy Kubernetes, DC/OS, Docker Swarm application configurations to Azure Container Service cluster.
     </description>
-    <url>https://wiki.jenkins-ci.org/display/JENKINS/TODO+Plugin</url>
+    <url>https://wiki.jenkins-ci.org/display/JENKINS/Azure+Container+Service+Plugin</url>
 
     <!-- The default licence for Jenkins OSS Plugins is MIT. Substitute for the applicable one if needed. -->
 
@@ -118,6 +117,12 @@
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>ssh-credentials</artifactId>
             <version>${ssh-credentials-plugin.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jenkins-ci.plugins</groupId>
+                    <artifactId>credentials</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
@@ -144,6 +149,11 @@
             <artifactId>mockito-core</artifactId>
             <version>2.8.47</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>credentials</artifactId>
+            <version>2.1.5</version>
         </dependency>
     </dependencies>
 
