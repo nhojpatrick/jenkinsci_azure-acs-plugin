@@ -33,7 +33,7 @@ public final class Constants {
 
     /**
      * URI scheme prefix (scheme://) pattern.
-     *
+     * <p>
      * The scheme consists of a sequence of characters beginning with a letter and followed by any combination of
      * letters, digits, plus (+), period (.), or hyphen (-).
      */
@@ -76,6 +76,15 @@ public final class Constants {
     public static final int DCOS_SSH_PORT = 2200;
     public static final int KUBERNETES_SSH_PORT = 22;
     public static final int SWARM_SSH_PORT = 2200;
+
+    /**
+     * AI constants.
+     */
+    public static final String AI_SWARM = "Swarm";
+    public static final String AI_KUBERNATES = "Kubernates";
+    public static final String AI_MARATHON = "Marathon";
+    public static final String AI_MESSAGE = "ErrorMessage";
+    public static final String AI_FQDN = "FQDN";
 
     public static int sshPort(ContainerServiceOchestratorTypes type) {
         switch (type) {

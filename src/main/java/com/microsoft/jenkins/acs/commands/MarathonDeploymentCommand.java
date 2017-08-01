@@ -15,6 +15,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.jcraft.jsch.JSchException;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -26,6 +27,7 @@ import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
 import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import com.microsoft.jenkins.kubernetes.util.DockerConfigBuilder;
 import hudson.EnvVars;
@@ -153,12 +155,19 @@ public class MarathonDeploymentCommand
                 EnvironmentInjector.inject(jobContext.getRun(), envVars, entry.getKey(), entry.getValue());
             }
 
+            String action = taskResult.commandState.isError() ? "DeployFailed" : "Deployed";
+            AzureACSPlugin.sendEvent(Constants.AI_MARATHON, action,
+                    Constants.AI_FQDN, AppInsightsUtils.hash(host));
+
             context.setCommandState(taskResult.commandState);
         } catch (Exception e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             context.logError(e);
+            AzureACSPlugin.sendEvent(Constants.AI_MARATHON, "DeployFailed",
+                    Constants.AI_FQDN, AppInsightsUtils.hash(host),
+                    Constants.AI_MESSAGE, e.getMessage());
         }
     }
 

@@ -137,8 +137,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 int portStart = 0;
                 int portEnd = 0;
                 try {
-                    portStart = Integer.valueOf(parts[0]);
-                    portEnd = Integer.valueOf(parts[1]);
+                    portStart = Integer.parseInt(parts[0]);
+                    portEnd = Integer.parseInt(parts[1]);
                 } catch (NumberFormatException ex) {
                     throw new InvalidConfigException(
                             Messages.EnablePortCommand_securityRuleInvalidDestinationPortRange(ruleDestPortRange));
@@ -156,7 +156,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 }
             } else {
                 // Single
-                final int port = Integer.valueOf(ruleDestPortRange);
+                final int port = Integer.parseInt(ruleDestPortRange);
                 if (portsToOpen.remove(port)) {
                     logger.println(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
                             rule.name(), ruleDestPortRange, String.valueOf(port)));

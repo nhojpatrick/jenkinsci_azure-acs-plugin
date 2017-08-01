@@ -111,21 +111,21 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
         final String extEndText = m.group("extEnd");
         final String protocolText = Util.fixNull(m.group("proto"));
 
-        final int inter = Integer.valueOf(interText);
+        final int inter = Integer.parseInt(interText);
 
         int interEnd = inter;
         if (interEndText != null) {
-            interEnd = Integer.valueOf(interEndText);
+            interEnd = Integer.parseInt(interEndText);
         }
 
         int ext = inter;
         if (extText != null) {
-            ext = Integer.valueOf(extText);
+            ext = Integer.parseInt(extText);
         }
 
         int extEnd;
         if (extEndText != null) {
-            extEnd = Integer.valueOf(extEndText);
+            extEnd = Integer.parseInt(extEndText);
         } else {
             if (interEnd == inter) {
                 // Mapping single port. For example, "80:8080"
