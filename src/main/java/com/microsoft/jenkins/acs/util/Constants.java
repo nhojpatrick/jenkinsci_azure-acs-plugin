@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class Constants {
+    public static final String PLUGIN_NAME = "AzureJenkinsACS";
+
     public static final String INVALID_OPTION = "*";
 
     public static final String KUBECONFIG_FILE = ".kube/config";
