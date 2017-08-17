@@ -15,7 +15,7 @@ public enum RunOn {
     Success,
     SuccessOrUnstable;
 
-    public boolean shouldRunOn(final Result result) {
+    public boolean shouldRunOn(Result result) {
         if (result == null) {
             // when running in pipeline, the result will be null, skip the check
             return true;
@@ -30,7 +30,7 @@ public enum RunOn {
         }
     }
 
-    public static RunOn fromString(final String value) {
+    public static RunOn fromString(String value) {
         switch (value) {
             case "SuccessOrUnstable":
                 return SuccessOrUnstable;

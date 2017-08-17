@@ -3,12 +3,15 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.annotations.VisibleForTesting;
 import com.jcraft.jsch.JSchException;
-import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
-import com.microsoft.jenkins.acs.util.JSchClient;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.remote.SSHClient;
 import hudson.FilePath;
 import hudson.model.Item;
 import org.apache.commons.codec.binary.Base64;
@@ -16,7 +19,6 @@ import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
@@ -30,17 +32,15 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
     }
 
     @VisibleForTesting
-    SwarmDeploymentCommand(final ExternalUtils externalUtils) {
+    SwarmDeploymentCommand(ExternalUtils externalUtils) {
         this.externalUtils = externalUtils;
     }
 
-    public void execute(final SwarmDeploymentCommand.ISwarmDeploymentCommandData context) {
+    public void execute(SwarmDeploymentCommand.ISwarmDeploymentCommandData context) {
         final String host = context.getMgmtFQDN();
         final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        final String linuxAdminUsername = context.getLinuxAdminUsername();
-        final JobContext jobContext = context.jobContext();
+        final JobContext jobContext = context.getJobContext();
 
-        JSchClient client = null;
         try {
             final DeploymentConfig config = context.getDeploymentConfig();
             if (config == null) {
@@ -48,57 +48,60 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
                 return;
             }
 
-            client = externalUtils.buildJSchClient(
-                    host, Constants.SWARM_SSH_PORT, linuxAdminUsername, sshCredentials, context);
+            SSHClient client = externalUtils.buildSSHClient(host, Constants.SWARM_SSH_PORT, sshCredentials)
+                    .withLogger(jobContext.logger());
 
-            prepareCredendtialsOnAgents(context, jobContext, client);
+            try (SSHClient connected = client.connect()) {
+                prepareCredendtialsOnAgents(context, jobContext, connected);
 
-            final FilePath[] configFiles = config.getConfigFiles();
-            for (final FilePath configFile : configFiles) {
-                final String deployedFilename = externalUtils.buildRemoteDeployConfigName();
-                context.logStatus(Messages.SwarmDeploymentCommand_copyConfigFileTo(
-                        configFile.getRemote(), client.getHost(), deployedFilename));
+                final FilePath[] configFiles = config.getConfigFiles();
+                for (FilePath configFile : configFiles) {
+                    final String deployedFilename = externalUtils.buildRemoteDeployConfigName();
+                    context.logStatus(Messages.SwarmDeploymentCommand_copyConfigFileTo(
+                            configFile.getRemote(), connected.getHost(), deployedFilename));
 
-                client.copyTo(
-                        jobContext.replaceMacro(configFile.read(), context.isEnableConfigSubstitution()),
-                        deployedFilename);
+                    connected.copyTo(
+                            jobContext.replaceMacro(configFile.read(), context.isEnableConfigSubstitution()),
+                            deployedFilename);
 
-                final String escapedName = escapeSingleQuote(deployedFilename);
+                    final String escapedName = escapeSingleQuote(deployedFilename);
 
-                if (context.isSwarmRemoveContainersFirst()) {
-                    context.logStatus(Messages.SwarmDeploymentCommand_removingDockerContainers());
-                    client.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' down",
+                    if (context.isSwarmRemoveContainersFirst()) {
+                        context.logStatus(Messages.SwarmDeploymentCommand_removingDockerContainers());
+                        try {
+                            connected.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' down",
+                                    escapedName));
+                        } catch (SSHClient.ExitStatusException ex) {
+                            // the service was not found
+                            context.logStatus(ex.getMessage());
+                        }
+                    }
+
+                    // Note that we have to specify DOCKER_HOST in the command rather than using `ChannelExec.setEnv`
+                    // as the latter one sets environment variable through SSH protocol but the default sshd_config
+                    // doesn't allow this
+                    context.logStatus(Messages.SwarmDeploymentCommand_updatingDockerContainers());
+                    connected.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' up -d",
                             escapedName));
+
+                    context.logStatus(Messages.SwarmDeploymentCommand_removeTempFile(deployedFilename));
+                    connected.execRemote("rm -f -- '" + escapedName + "'");
                 }
-
-                // Note that we have to specify DOCKER_HOST in the command rather than using `ChannelExec.setEnv`
-                // as the latter one sets environment variable through SSH protocol but the default sshd_config
-                // doesn't allow this
-                context.logStatus(Messages.SwarmDeploymentCommand_updatingDockerContainers());
-                client.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' up -d",
-                        escapedName));
-
-                context.logStatus(Messages.SwarmDeploymentCommand_removeTempFile(deployedFilename));
-                client.execRemote("rm -f -- '" + escapedName + "'");
             }
 
-            context.setDeploymentState(DeploymentState.Success);
+            context.setCommandState(CommandState.Success);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             context.logError(e);
-        } catch (JSchException | IOException | IllegalArgumentException e) {
+        } catch (Exception e) {
             context.logError(e);
-        } finally {
-            if (client != null) {
-                client.close();
-            }
         }
     }
 
     private void prepareCredendtialsOnAgents(
-            final SwarmDeploymentCommand.ISwarmDeploymentCommandData context,
-            final JobContext jobContext,
-            final JSchClient client) throws IOException, InterruptedException, JSchException {
+            SwarmDeploymentCommand.ISwarmDeploymentCommandData context,
+            JobContext jobContext,
+            SSHClient client) throws Exception {
         final List<DockerRegistryEndpoint> containerRegistryCredentials = context.getContainerRegistryCredentials();
         final Item tokenContext = jobContext.getRun().getParent();
 
@@ -128,29 +131,22 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
                     escapeSingleQuote(username), escapeSingleQuote(password), escapeSingleQuote(server));
 
             context.logStatus(Messages.SwarmDeploymentConfig_addCredentialsFor(server));
-            client.execRemote(command, false);
+            client.execRemote(command, false, false);
         }
     }
 
     @VisibleForTesting
     interface ExternalUtils {
-        JSchClient buildJSchClient(String host,
-                                   int port,
-                                   @Nullable String username,
-                                   SSHUserPrivateKey credentials,
-                                   @Nullable IBaseCommandData context);
+        SSHClient buildSSHClient(String host,
+                                 int port,
+                                 SSHUserPrivateKey credentials) throws JSchException;
 
         String buildRemoteDeployConfigName();
 
         ExternalUtils DEFAULT = new ExternalUtils() {
             @Override
-            public JSchClient buildJSchClient(
-                    final String host,
-                    final int port,
-                    @Nullable final String username,
-                    final SSHUserPrivateKey credentials,
-                    @Nullable final IBaseCommandData context) {
-                return new JSchClient(host, port, username, credentials, context);
+            public SSHClient buildSSHClient(String host, int port, SSHUserPrivateKey credentials) throws JSchException {
+                return new SSHClient(host, port, credentials);
             }
 
             @Override

@@ -15,7 +15,7 @@ import java.util.List;
 
 public class MarathonDeploymentConfig extends DeploymentConfig {
 
-    public MarathonDeploymentConfig(final FilePath[] configFiles) {
+    public MarathonDeploymentConfig(FilePath[] configFiles) {
         super(configFiles);
     }
 
@@ -28,7 +28,7 @@ public class MarathonDeploymentConfig extends DeploymentConfig {
     public List<ServicePort> getServicePorts() throws IOException, InterruptedException, InvalidFormatException {
         ArrayList<ServicePort> servicePorts = new ArrayList<ServicePort>();
 
-        for (final FilePath configFile : getConfigFiles()) {
+        for (FilePath configFile : getConfigFiles()) {
             try (InputStream cfgFile = configFile.read()) {
                 final ObjectMapper mapper = new ObjectMapper();
 

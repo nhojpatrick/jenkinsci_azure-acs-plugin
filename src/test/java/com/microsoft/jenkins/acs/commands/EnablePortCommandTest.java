@@ -6,6 +6,7 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.network.*;
 import com.microsoft.azure.management.resources.fluentcore.model.Creatable;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.rest.RestException;
 import com.microsoft.rest.ServiceCallback;
 import com.microsoft.rest.ServiceFuture;

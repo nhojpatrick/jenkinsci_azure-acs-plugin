@@ -7,7 +7,8 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
-import com.microsoft.jenkins.acs.JobContext;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
 import hudson.model.Result;
 import hudson.model.Run;
 import org.junit.Test;
@@ -23,42 +24,42 @@ import static org.mockito.Mockito.verify;
 public class CheckBuildResultCommandTest {
     @Test
     public void testOnSuccessGotSuccess() {
-        verifyState(RunOn.Success, Result.SUCCESS, DeploymentState.Success);
+        verifyState(RunOn.Success, Result.SUCCESS, CommandState.Success);
     }
 
     @Test
     public void testOnSuccessGotUnstable() {
-        verifyState(RunOn.Success, Result.UNSTABLE, DeploymentState.Done);
+        verifyState(RunOn.Success, Result.UNSTABLE, CommandState.Done);
     }
 
     @Test
     public void testOnSuccessGotFailure() {
-        verifyState(RunOn.Success, Result.FAILURE, DeploymentState.Done);
+        verifyState(RunOn.Success, Result.FAILURE, CommandState.Done);
     }
 
     @Test
     public void testOnSuccessOrUnstableGotSuccess() {
-        verifyState(RunOn.SuccessOrUnstable, Result.SUCCESS, DeploymentState.Success);
+        verifyState(RunOn.SuccessOrUnstable, Result.SUCCESS, CommandState.Success);
     }
 
     @Test
     public void testOnSuccessOrUnstableGotUnstable() {
-        verifyState(RunOn.SuccessOrUnstable, Result.UNSTABLE, DeploymentState.Success);
+        verifyState(RunOn.SuccessOrUnstable, Result.UNSTABLE, CommandState.Success);
     }
 
     @Test
     public void testOnSuccessOrUnstableGotFailure() {
-        verifyState(RunOn.SuccessOrUnstable, Result.FAILURE, DeploymentState.Done);
+        verifyState(RunOn.SuccessOrUnstable, Result.FAILURE, CommandState.Done);
     }
 
     private void verifyState(
             final RunOn runOn,
             final Result result,
-            final DeploymentState expectedState) {
+            final CommandState expectedState) {
         CheckBuildResultCommand.ICheckBuildResultCommandData context = prepareContext(runOn, result);
         new CheckBuildResultCommand().execute(context);
 
-        verify(context, times(1)).setDeploymentState(expectedState);
+        verify(context, times(1)).setCommandState(expectedState);
     }
 
     private CheckBuildResultCommand.ICheckBuildResultCommandData prepareContext(
@@ -70,7 +71,7 @@ public class CheckBuildResultCommandTest {
 
         JobContext jobContext = mock(JobContext.class);
         Run<?, ?> run = mock(Run.class);
-        doReturn(jobContext).when(context).jobContext();
+        doReturn(jobContext).when(context).getJobContext();
         doReturn(run).when(jobContext).getRun();
         doReturn(result).when(run).getResult();
 

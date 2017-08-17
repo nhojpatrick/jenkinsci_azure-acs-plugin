@@ -1,37 +1,150 @@
 # Azure Container Service Plugin
 
+A Jenkins Plugin to deploy configurations to Azure Container Service (ACS) with the following orchestrator:
 
-Jenkins Plugin to create an Azure Container Service cluster with a DC/OS orchestrator and deploys a marathon config file to the cluster.
+* [Kubernetes](https://kubernetes.io/)
+* [DC/OS](https://dcos.io/) with [Marathon](https://mesosphere.github.io/marathon/)
+* [Docker Swarm](https://docs.docker.com/engine/swarm/)
+
+It provides the following main functionality:
+
+* Integration with ACS. Allow you to select existing ACS clusters and manages the authentication credentials.
+* Unified configure interface for all the supported orchestrator.
+* Variable substitution for configurations, which enables dynamic deployment in CI/CD.
+* Docker login credentials management for pulling images from private repository.
 
 ## Pre-requirements
-Register and authorize your client application.
 
-Retrieve and use Client ID and Client Secret to be sent to Azure AD during authentication.
-
-Refer to
-  * [Adding, Updating, and Removing an Application](https://msdn.microsoft.com/en-us/library/azure/dn132599.aspx) 
-  * [Register a client app](https://msdn.microsoft.com/en-us/library/azure/mt403303.aspx)
-
-## How to install the Azure Container Service Plugin
-1. Download the azure-acs-plugin.hpi file from [here](https://github.com/Microsoft/azure-acs-plugin/blob/master/install/azure-acs-plugin.hpi)
-1. Within the Jenkins dashboard, click Manage Jenkins.
-2. In the Manage Jenkins page, click Manage Plugins.
-3. Click the Advanced tab.
-4. Click on the Choose file button in the Upload Plugin section and choose the azure-acs-plugin.hpi file.
-5. Click the Upload button in the Upload Plugin section.
-6. Click either “Install without restart” or “Download now and install after restart”.
-7. Restart Jenkins if necessary.
+* An ACS cluster with the supported orchestrator
+   * [Azure Container Service with Kubernetes](https://docs.microsoft.com/en-us/azure/container-service/kubernetes/)
+   * [Azure Container Service with DC/OS and Swarm](https://docs.microsoft.com/en-us/azure/container-service/dcos-swarm/)
+* A Azure service principal that can be used to manage the ACS cluster
+   * [Application and service principal objects in Azure Active Directory (Azure AD)](https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-application-objects)
+   * [Use portal to create an Azure Active Directory application and service principal that can access resources](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal)
+   * [Azure Credentials Plugin](https://wiki.jenkins.io/display/JENKINS/Azure+Credentials+plugin)
+* Configurations for the target ACS cluster orchestrator, this can be
+   * Kubernetes resource configurations of the following kinds:
+      * Deployment
+      * Replica Set
+      * Replication Controller - No rolling-update support. If that's required, consider using [Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-update-deployment).
+      * Daemon Set
+      * Pod
+      * Job
+      * Service
+      * Ingress
+      * Secret - The plugin also provides secrets configuration.
+   * Marathon application configurations
+   * Docker compose configurations
+   
+   In the context of container deployment, normally we should build a Docker image from the project
+   artifacts, and push the image to a repository. This can be done with some existing plugins such as
+   [CloudBees Docker Build and Publish plugin](https://wiki.jenkins.io/display/JENKINS/CloudBees+Docker+Build+and+Publish+plugin).
 
 ## Configure the plugin
+
+![screenshot](img/screenshot.png)
+
 1. Within the Jenkins dashboard, Select a Job then select Configure
-2. Scroll to the "Add post-build action" drop down.  
-3. Select "Azure Container Service Configuration" 
-4. Enter the subscription ID, Client ID, Client Secret and the OAuth 2.0 Token Endpoint in the Azure Profile Configuration section.
-5. Enter the Region, DNS Name Prefix, Agent Count, Agent VM Size, Admin Username, Master Count, and SSH RSA Public Key in the Azure Container Service Profile Configuration section.
-6. Enter the Marathon config file path, SSH RSA private file path, and SSH RSA private file password in the Marathon Profile Configuration section.
-7. Save Job and click on Build now.
-8. Jenkins will create an Azure Container Service cluster and deploy the marathon file to the cluster upon cluster creation if cluster doesn't exist.  Otherwise, the marathon file will be deployed to the existing Azure Container Service cluster. 
-9. Logs are available in the builds console logs.
+1. Scroll to the "Add post-build action" drop down.  
+1. Select "Deploy to Azure Container Service" 
+1. Select the service principal from "Azure Credentials" dropdown. If no credentials are configured, create one.
+1. All resource group names will be loaded into the "Resource Group" dropdown. Select the one containing
+   your ACS cluster.
+1. All the container service available in the selected resource group will be loaded into the "Container 
+   Service" dropdown. Select your target ACS cluster. (It's suggested that we use a standalone resource group
+   to manage an ACS cluster, and do not add other resources or ACS clusters into the resource group.)
+1. Select the "Master Node SSH Credentials". This should be the credentials of type "SSH Username with
+   private key", where username is the login name you specified when you create the ACS cluster (`azureuser`
+   by default), and private key is the one matching the public key you specified on the ACS cluster creation
+   (by default that may be `$HOME/.ssh/id_rsa` on Linux and `%USERPROFILE%\.ssh\id_rsa` on Windows).
+1. Enter the "Config Files" path of the configurations you want to deploy, in the form of [Ant glob syntax](https://ant.apache.org/manual/dirtasks.html#patterns).
+   Use comma (,) to separate multiple patterns.
+1. If you want to dynamically update the configurations on each build, for example, use the `$BUILD_NUMBER` as the
+   tag name of the image being pulled, you can tick the "Enable Variable Substitution in Config" option and the 
+   variables (in the pattern `$VARIABLE` or `${VARIABLE}`) in the configurations will be substituted with the
+   corresponding value if they exists in the environment variables.
+1. If the configurations needs to pull images from private repository, click the "Docker Container Registry
+   Credentials..." button and add them one by one.
+   * For Kubernetes, you can enter the secret name. The credentials you provided will be consolidated into
+      a Secret resource in your Kubernetes cluster with the name you provided. You can use that secret in your
+      Kubernetes configuration.
+      
+      You can use variables in the secret name (e.g., `$BUILD_NUMBER`), to generate a secret specific to a build.
+      The name will be exposed as environment variable `KUBERNETES_SECRET_NAME` and you can use that in your
+      Kubernetes resource configurations if the "Enable Variable Substitution in Config" option is turned on.
+      
+      ```yaml
+      apiVersion: extensions/v1beta1
+      kind: Deployment
+      metadata:
+        name: sample-k8s-deployment
+      spec:
+        replicas: 1
+        template:
+          metadata:
+            labels:
+              app: sample-k8s-app
+          spec:
+            containers:
+            - name: sample-k8s-app-container
+              image: <username or registry URL>/<image_name>:<tag(maybe, $BUILD_NUMBER)>
+              ports:
+              - containerPort: 8080
+            imagePullSecrets:
+            - name: $KUBERNETES_SECRET_NAME
+      ```
+   * For Marathon on DC/OS, you can specify the "DC/OS Docker Credentials Path", the credentials you provided
+      will be archived into a file `docker.tar.gz`, and uploaded to the agent nodes in the path you filled. You can
+      use it to construct the [URI in your Marathon config](https://mesosphere.github.io/marathon/docs/native-docker-private-registry.html):
+      
+      ```
+      file://<absolute_path_you_filled>/docker.tar.gz
+      ```
+      
+      If this path is left blank, a unique path will be generated under `$HOME/acs-plugin-dcos.docker`. 
+      
+      The URI will be exported to the environment variable `MARATHON_DOCKER_CFG_ARCHIVE_URI` which you can use in your
+      Marathon configuration.
+      
+      ```json
+      {
+        "id": "marathon-demo-app",
+        "cmd": null,
+        "cpus": 1,
+        "mem": 512,
+        "disk": 0,
+        "instances": 1,
+        "container": {
+          "docker": {
+            "image": "<username or registry URL>/<image_name>:<tag(maybe, $BUILD_NUMBER)>",
+            "network": "BRIDGE",
+            "portMappings": [
+              {
+                "containerPort": 8080,
+                "hostPort": 80,
+                "protocol": "tcp",
+                "name": "80",
+                "labels": null
+              }
+            ]
+          },
+          "type": "DOCKER"
+        },
+        "acceptedResourceRoles": [
+          "slave_public"
+        ],
+        "uris": [
+          "$MARATHON_DOCKER_CFG_ARCHIVE_URI"
+        ]
+      }
+      ```
+   * Add a credentials entry for each of the private Docker registries involved in your configuration. If it is
+      hosted on DockerHub, you can leave the URL as empty; otherwise for other private registries, you need to 
+      specify the "Docker registry URL". 
+1. You may verify the static configuration by clicking "Verify Configuration". This will give you basic
+   result of the configuration quality. You need to run a sample build to verify it works as some of the
+   contents has to be loaded at build time.
+
 
 
  

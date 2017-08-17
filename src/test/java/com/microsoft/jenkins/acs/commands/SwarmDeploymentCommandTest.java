@@ -9,10 +9,11 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.jcraft.jsch.JSchException;
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
-import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
-import com.microsoft.jenkins.acs.util.JSchClient;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.remote.SSHClient;
 import hudson.FilePath;
 import hudson.model.Item;
 import hudson.model.Job;
@@ -27,6 +28,7 @@ import org.mockito.stubbing.Answer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -54,71 +56,71 @@ public class SwarmDeploymentCommandTest {
     private static final String REMOTE_APP_CONFIG_NAME = "acsDep1234567890.yml";
 
     @Test
-    public void testSuccessfulExecute() throws IOException, JSchException, InterruptedException {
+    public void testSuccessfulExecute() throws Exception {
         ContextBuilder b = new ContextBuilder();
         b.executeCommand();
 
-        verify(b.jSchClient, times(1)).execRemote(String.format("docker login -u '%s' -p '%s' '%s'",
-                DOCKER_USER, DOCKER_PASSWORD, DEFAULT_SERVER), false);
-        verify(b.jSchClient, times(1)).copyTo(b.configFileStream, REMOTE_APP_CONFIG_NAME);
-        verify(b.jSchClient, times(1)).execRemote("DOCKER_HOST=:2375 docker-compose -f '" + REMOTE_APP_CONFIG_NAME + "' down");
-        verify(b.jSchClient, times(1)).execRemote("DOCKER_HOST=:2375 docker-compose -f '" + REMOTE_APP_CONFIG_NAME + "' up -d");
-        verify(b.jSchClient, times(1)).execRemote("rm -f -- '" + REMOTE_APP_CONFIG_NAME + "'");
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.sshClient, times(1)).execRemote(String.format("docker login -u '%s' -p '%s' '%s'",
+                DOCKER_USER, DOCKER_PASSWORD, DEFAULT_SERVER), false, false);
+        verify(b.sshClient, times(1)).copyTo(b.configFileStream, REMOTE_APP_CONFIG_NAME);
+        verify(b.sshClient, times(1)).execRemote("DOCKER_HOST=:2375 docker-compose -f '" + REMOTE_APP_CONFIG_NAME + "' down");
+        verify(b.sshClient, times(1)).execRemote("DOCKER_HOST=:2375 docker-compose -f '" + REMOTE_APP_CONFIG_NAME + "' up -d");
+        verify(b.sshClient, times(1)).execRemote("rm -f -- '" + REMOTE_APP_CONFIG_NAME + "'");
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
-    public void testWithNullDeploymentConfig() throws IOException, JSchException, InterruptedException {
+    public void testWithNullDeploymentConfig() throws Exception {
         ContextBuilder b = new ContextBuilder().withoutDeploymentConfig();
         b.executeCommand();
 
-        verify(b.jSchClient, never()).execRemote(any(String.class), any(Boolean.TYPE));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(b.sshClient, never()).execRemote(any(String.class), any(Boolean.TYPE), any(Boolean.TYPE));
+        verify(b.context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
-    public void testWithoutContainerRegistryCredentials() throws IOException, JSchException, InterruptedException {
+    public void testWithoutContainerRegistryCredentials() throws Exception {
         ContextBuilder b = new ContextBuilder().withoutContainerRegistryCredentials();
         b.executeCommand();
 
-        verify(b.jSchClient, never()).execRemote(any(String.class), any(Boolean.TYPE));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.sshClient, never()).execRemote(any(String.class), any(Boolean.TYPE), any(Boolean.TYPE));
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
-    public void testNullDockerRegistryToken() throws IOException, JSchException, InterruptedException {
+    public void testNullDockerRegistryToken() throws Exception {
         ContextBuilder b = new ContextBuilder().withNullDockerRegistryToken();
         b.executeCommand();
 
-        verify(b.jSchClient, never()).execRemote(any(String.class), any(Boolean.TYPE));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.sshClient, never()).execRemote(any(String.class), any(Boolean.TYPE), any(Boolean.TYPE));
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
-    public void testEmptyDockerRegistryAuthToken() throws IOException, JSchException, InterruptedException {
+    public void testEmptyDockerRegistryAuthToken() throws Exception {
         ContextBuilder b = new ContextBuilder().withToken("");
         b.executeCommand();
 
-        verify(b.jSchClient, never()).execRemote(any(String.class), any(Boolean.TYPE));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(b.sshClient, never()).execRemote(any(String.class), any(Boolean.TYPE), any(Boolean.TYPE));
+        verify(b.context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
-    public void testIllegalDockerRegistryAuthToken() throws IOException, JSchException, InterruptedException {
+    public void testIllegalDockerRegistryAuthToken() throws Exception {
         ContextBuilder b = new ContextBuilder().withToken(base64Encode("only_name"));
         b.executeCommand();
 
-        verify(b.jSchClient, never()).execRemote(any(String.class), any(Boolean.TYPE));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(b.sshClient, never()).execRemote(any(String.class), any(Boolean.TYPE), any(Boolean.TYPE));
+        verify(b.context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
-    public void testWithoutConfigFiles() throws  IOException, JSchException, InterruptedException {
+    public void testWithoutConfigFiles() throws Exception {
         ContextBuilder b = new ContextBuilder().withoutConfigFiles();
         b.executeCommand();
 
-        verify(b.jSchClient, never()).copyTo(any(InputStream.class), any(String.class));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.sshClient, never()).copyTo(any(InputStream.class), any(String.class));
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     private static class ContextBuilder {
@@ -130,7 +132,7 @@ public class SwarmDeploymentCommandTest {
         DeploymentConfig deploymentConfig;
 
         SwarmDeploymentCommand.ExternalUtils externalUtils;
-        JSchClient jSchClient;
+        SSHClient sshClient;
 
         DockerRegistryEndpoint registryEndpoint;
         DockerRegistryToken registryToken;
@@ -150,7 +152,7 @@ public class SwarmDeploymentCommandTest {
             final Answer<Void> answer = new Answer<Void>() {
                 @Override
                 public Void answer(InvocationOnMock invocation) throws Throwable {
-                    context.setDeploymentState(DeploymentState.HasError);
+                    context.setCommandState(CommandState.HasError);
                     return null;
                 }
             };
@@ -166,7 +168,8 @@ public class SwarmDeploymentCommandTest {
             doReturn(true).when(context).isEnableConfigSubstitution();
 
             jobContext = mock(JobContext.class);
-            doReturn(jobContext).when(context).jobContext();
+            doReturn(mock(PrintStream.class)).when(jobContext).logger();
+            doReturn(jobContext).when(context).getJobContext();
             Run<?, ?> run = mock(Run.class);
             Job job = mock(Job.class);
             doReturn(job).when(run).getParent();
@@ -176,14 +179,14 @@ public class SwarmDeploymentCommandTest {
             doReturn(deploymentConfig).when(context).getDeploymentConfig();
 
             externalUtils = mock(SwarmDeploymentCommand.ExternalUtils.class);
-            jSchClient = mock(JSchClient.class);
-            doReturn(jSchClient).when(externalUtils).buildJSchClient(
+            sshClient = mock(SSHClient.class);
+            doReturn(sshClient).when(externalUtils).buildSSHClient(
                     any(String.class),
                     any(Integer.TYPE),
-                    any(String.class),
-                    any(SSHUserPrivateKey.class),
-                    any(IBaseCommandData.class));
+                    any(SSHUserPrivateKey.class));
             doReturn(REMOTE_APP_CONFIG_NAME).when(externalUtils).buildRemoteDeployConfigName();
+            doReturn(sshClient).when(sshClient).withLogger(any(PrintStream.class));
+            doReturn(sshClient).when(sshClient).connect();
 
             registryEndpoint = mock(DockerRegistryEndpoint.class);
             registryToken = mock(DockerRegistryToken.class);

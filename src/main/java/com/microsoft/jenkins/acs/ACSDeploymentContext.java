@@ -22,16 +22,12 @@ import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.commands.CheckBuildResultCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
-import com.microsoft.jenkins.acs.commands.DeploymentState;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
 import com.microsoft.jenkins.acs.commands.GetContainerServiceInfoCommand;
-import com.microsoft.jenkins.acs.commands.IBaseCommandData;
-import com.microsoft.jenkins.acs.commands.ICommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.RunOn;
 import com.microsoft.jenkins.acs.commands.SwarmDeploymentCommand;
-import com.microsoft.jenkins.acs.commands.TransitionInfo;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.KubernetesDeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.MarathonDeploymentConfig;
@@ -39,7 +35,12 @@ import com.microsoft.jenkins.acs.orchestrators.SwarmDeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
-import com.microsoft.jenkins.acs.util.JSchClient;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.BaseCommandContext;
+import com.microsoft.jenkins.azurecommons.command.CommandService;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.remote.SSHClient;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
@@ -67,11 +68,10 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
 
-public class ACSDeploymentContext extends AbstractBaseContext
+public class ACSDeploymentContext extends BaseCommandContext
         implements CheckBuildResultCommand.ICheckBuildResultCommandData,
         GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData,
         EnablePortCommand.IEnablePortCommandData,
@@ -107,11 +107,11 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @DataBoundConstructor
     public ACSDeploymentContext(
-            final String azureCredentialsId,
-            final String resourceGroupName,
-            final String containerService,
-            final String sshCredentialsId,
-            final String configFilePaths) {
+            String azureCredentialsId,
+            String resourceGroupName,
+            String containerService,
+            String sshCredentialsId,
+            String configFilePaths) {
         this.azureCredentialsId = azureCredentialsId;
         this.resourceGroupName = StringUtils.trimToEmpty(resourceGroupName);
         this.containerService = StringUtils.trimToEmpty(containerService);
@@ -120,7 +120,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public StepExecution start(final StepContext context) throws Exception {
+    public StepExecution start(StepContext context) throws Exception {
         return new ExecutionImpl(new ACSDeploymentRecorder(this), context);
     }
 
@@ -134,7 +134,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
         private final transient SimpleBuildStep delegate;
 
-        ExecutionImpl(final SimpleBuildStep delegate, final StepContext context) {
+        ExecutionImpl(SimpleBuildStep delegate, StepContext context) {
             super(context);
             this.delegate = delegate;
         }
@@ -173,7 +173,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setRunOn(final String runOn) {
+    public void setRunOn(String runOn) {
         this.runOn = runOn;
     }
 
@@ -208,7 +208,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public void setMgmtFQDN(final String fqdn) {
+    public void setMgmtFQDN(String fqdn) {
         this.mgmtFQDN = fqdn;
     }
 
@@ -223,7 +223,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public IBaseCommandData getDataForCommand(final ICommand command) {
+    public IBaseCommandData getDataForCommand(ICommand command) {
         return this;
     }
 
@@ -233,7 +233,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @Override
-    public void setLinuxRootUsername(final String username) {
+    public void setLinuxRootUsername(String username) {
         this.linuxAdminUsername = username;
     }
 
@@ -287,7 +287,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setKubernetesNamespace(final String kubernetesNamespace) {
+    public void setKubernetesNamespace(String kubernetesNamespace) {
         this.kubernetesNamespace = StringUtils.trimToEmpty(kubernetesNamespace);
     }
 
@@ -297,7 +297,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setSwarmRemoveContainersFirst(final boolean swarmRemoveContainersFirst) {
+    public void setSwarmRemoveContainersFirst(boolean swarmRemoveContainersFirst) {
         this.swarmRemoveContainersFirst = swarmRemoveContainersFirst;
     }
 
@@ -307,7 +307,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setEnableConfigSubstitution(final boolean enableConfigSubstitution) {
+    public void setEnableConfigSubstitution(boolean enableConfigSubstitution) {
         this.enableConfigSubstitution = enableConfigSubstitution;
     }
 
@@ -317,7 +317,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setSecretName(final String secretName) {
+    public void setSecretName(String secretName) {
         this.secretName = StringUtils.trimToEmpty(secretName);
     }
 
@@ -327,7 +327,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setDcosDockerCredentialsPath(final String dcosDockerCredentialsPath) {
+    public void setDcosDockerCredentialsPath(String dcosDockerCredentialsPath) {
         this.dcosDockerCredentialsPath = StringUtils.trimToEmpty(dcosDockerCredentialsPath);
     }
 
@@ -337,7 +337,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setDcosDockerCredenditalsPathShared(final boolean dcosDockerCredenditalsPathShared) {
+    public void setDcosDockerCredenditalsPathShared(boolean dcosDockerCredenditalsPathShared) {
         this.dcosDockerCredenditalsPathShared = dcosDockerCredenditalsPathShared;
     }
 
@@ -349,60 +349,54 @@ public class ACSDeploymentContext extends AbstractBaseContext
     }
 
     @DataBoundSetter
-    public void setContainerRegistryCredentials(final List<DockerRegistryEndpoint> containerRegistryCredentials) {
+    public void setContainerRegistryCredentials(List<DockerRegistryEndpoint> containerRegistryCredentials) {
         List<DockerRegistryEndpoint> endpoints = new ArrayList<>();
         for (DockerRegistryEndpoint endpoint : containerRegistryCredentials) {
-            if (endpoint.getUrl() != null && endpoint.getCredentialsId() != null) {
-                endpoints.add(endpoint);
+            String credentialsId = StringUtils.trimToNull(endpoint.getCredentialsId());
+            if (credentialsId == null) {
+                // no credentials item is selected, skip this endpoint
+                continue;
             }
+
+            String registryUrl = StringUtils.trimToNull(endpoint.getUrl());
+            // null URL results in "https://index.docker.io/v1/" effectively
+            if (registryUrl != null) {
+                // It's common that the user omits the scheme prefix, we add http:// as default.
+                // Otherwise it will cause MalformedURLException when we call endpoint.getEffectiveURL();
+                if (!Constants.URI_SCHEME_PREFIX.matcher(registryUrl).find()) {
+                    registryUrl = "http://" + registryUrl;
+                }
+            }
+            endpoint = new DockerRegistryEndpoint(registryUrl, credentialsId);
+            endpoints.add(endpoint);
         }
         this.containerRegistryCredentials = endpoints;
     }
 
     public void configure(
-            @Nonnull final Run<?, ?> run,
-            @Nonnull final FilePath workspace,
-            @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException, InterruptedException {
+            @Nonnull Run<?, ?> run,
+            @Nonnull FilePath workspace,
+            @Nonnull Launcher launcher,
+            @Nonnull TaskListener listener) throws IOException, InterruptedException {
 
         this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
 
-        Hashtable<Class, TransitionInfo> commands = new Hashtable<>();
-
-        commands.put(CheckBuildResultCommand.class,
-                new TransitionInfo(new CheckBuildResultCommand(), GetContainerServiceInfoCommand.class, null));
-
-        commands.put(GetContainerServiceInfoCommand.class,
-                new TransitionInfo(new GetContainerServiceInfoCommand(), DeploymentChoiceCommand.class, null));
-
-        // DeploymentChoiceCommand will point out the next step through INextCommandAware
-        commands.put(DeploymentChoiceCommand.class,
-                new TransitionInfo(new DeploymentChoiceCommand(), null, null));
-
-        // ACS with Kubernetes will add a security rule for the service port automatically,
-        // so no need to manually create one to enable the port access
-        commands.put(KubernetesDeploymentCommand.class,
-                new TransitionInfo(new KubernetesDeploymentCommand(), null, null));
-
-        commands.put(MarathonDeploymentCommand.class,
-                new TransitionInfo(new MarathonDeploymentCommand(), EnablePortCommand.class, null));
-
-        commands.put(SwarmDeploymentCommand.class,
-                new TransitionInfo(new SwarmDeploymentCommand(), EnablePortCommand.class, null));
-
-        commands.put(EnablePortCommand.class,
-                new TransitionInfo(new EnablePortCommand(), null, null));
+        CommandService commandService = CommandService.builder()
+                .withTransition(CheckBuildResultCommand.class, GetContainerServiceInfoCommand.class)
+                .withTransition(GetContainerServiceInfoCommand.class, DeploymentChoiceCommand.class)
+                .withSingleCommand(KubernetesDeploymentCommand.class)
+                .withTransition(MarathonDeploymentCommand.class, EnablePortCommand.class)
+                .withTransition(SwarmDeploymentCommand.class, EnablePortCommand.class)
+                .withStartCommand(CheckBuildResultCommand.class)
+                .build();
 
         final JobContext jobContext = new JobContext(run, workspace, launcher, listener);
-        super.configure(
-                jobContext,
-                commands,
-                CheckBuildResultCommand.class);
+        super.configure(jobContext, commandService);
 
         // Build DeploymentConfig
-        final EnvVars envVars = jobContext().envVars();
+        final EnvVars envVars = jobContext.envVars();
         final String expandedConfigFilePaths = envVars.expand(getConfigFilePaths());
-        final FilePath[] configFiles = jobContext.workspacePath().list(expandedConfigFilePaths);
+        final FilePath[] configFiles = jobContext.getWorkspace().list(expandedConfigFilePaths);
         if (configFiles.length == 0) {
             throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(getConfigFilePaths()));
         }
@@ -421,11 +415,9 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 throw new IllegalArgumentException(
                         Messages.ACSDeploymentContext_orchestratorNotSupported(getOrchestratorType()));
         }
-
-        this.setDeploymentState(DeploymentState.Running);
     }
 
-    private static SSHUserPrivateKey getSshCredentials(final String id) {
+    private static SSHUserPrivateKey getSshCredentials(String id) {
         SSHUserPrivateKey creds = CredentialsMatchers.firstOrNull(
                 CredentialsProvider.lookupCredentials(
                         BasicSSHUserPrivateKey.class,
@@ -436,7 +428,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return creds;
     }
 
-    public static String getContainerServiceName(final String containerService) {
+    public static String getContainerServiceName(String containerService) {
         if (StringUtils.isBlank(containerService)) {
             throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankContainerService());
         }
@@ -444,7 +436,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
         return part[0].trim();
     }
 
-    public static String getOrchestratorType(final String containerService) {
+    public static String getOrchestratorType(String containerService) {
         if (StringUtils.isBlank(containerService)) {
             throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
         }
@@ -466,23 +458,23 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
         CredentailsFinder DEFAULT = new CredentailsFinder() {
             @Override
-            public AzureCredentials.ServicePrincipal getServicePrincipal(final String credentialsId) {
+            public AzureCredentials.ServicePrincipal getServicePrincipal(String credentialsId) {
                 return AzureCredentials.getServicePrincipal(credentialsId);
             }
 
             @Override
-            public SSHUserPrivateKey getSshCredentials(final String credentialsId) {
+            public SSHUserPrivateKey getSshCredentials(String credentialsId) {
                 return ACSDeploymentContext.getSshCredentials(credentialsId);
             }
         };
     }
 
     public static String validate(
-            final String azureCredentialsId,
-            final String resourceGroup,
-            final String containerService,
-            final String sshCredentialsId,
-            final String kubernetesNamespace) {
+            String azureCredentialsId,
+            String resourceGroup,
+            String containerService,
+            String sshCredentialsId,
+            String kubernetesNamespace) {
         return validate(
                 azureCredentialsId,
                 resourceGroup,
@@ -494,12 +486,12 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @VisibleForTesting
     static String validate(
-            final String azureCredentialsId,
-            final String resourceGroup,
-            final String containerService,
-            final String sshCredentialsId,
-            final String kubernetesNamespace,
-            final CredentailsFinder credentailsFinder) {
+            String azureCredentialsId,
+            String resourceGroup,
+            String containerService,
+            String sshCredentialsId,
+            String kubernetesNamespace,
+            CredentailsFinder credentailsFinder) {
         AzureCredentials.ServicePrincipal servicePrincipal =
                 credentailsFinder.getServicePrincipal(azureCredentialsId);
 
@@ -537,18 +529,18 @@ public class ACSDeploymentContext extends AbstractBaseContext
 
     @Extension
     public static final class DescriptorImpl extends StepDescriptor {
-        public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath final Item owner) {
+        public ListBoxModel doFillAzureCredentialsIdItems(@AncestorInPath Item owner) {
             StandardListBoxModel model = new StandardListBoxModel();
             model.add(Messages.ACSDeploymentContext_selectAzureCredentials(), Constants.INVALID_OPTION);
             model.includeAs(ACL.SYSTEM, owner, AzureCredentials.class);
             return model;
         }
 
-        public FormValidation doVerifyConfiguration(@QueryParameter final String azureCredentialsId,
-                                                    @QueryParameter final String resourceGroupName,
-                                                    @QueryParameter final String containerService,
-                                                    @QueryParameter final String sshCredentialsId,
-                                                    @QueryParameter final String kubernetesNamespace) {
+        public FormValidation doVerifyConfiguration(@QueryParameter String azureCredentialsId,
+                                                    @QueryParameter String resourceGroupName,
+                                                    @QueryParameter String containerService,
+                                                    @QueryParameter String sshCredentialsId,
+                                                    @QueryParameter String kubernetesNamespace) {
             String validateResult = validate(
                     azureCredentialsId,
                     resourceGroupName,
@@ -579,13 +571,13 @@ public class ACSDeploymentContext extends AbstractBaseContext
                 }
 
                 try {
-                    JSchClient jschClient = new JSchClient(
+                    SSHClient sshClient = new SSHClient(
                             container.masterFqdn(),
                             Constants.sshPort(container.orchestratorType()),
-                            container.linuxRootUsername(),
-                            getSshCredentials(sshCredentialsId), null);
-
-                    jschClient.execRemote("ls");
+                            getSshCredentials(sshCredentialsId));
+                    try (SSHClient ignore = sshClient.connect()) {
+                        sshClient.execRemote("ls");
+                    }
                 } catch (Exception e) {
                     return FormValidation.error(Messages.ACSDeploymentContext_sshFailure(e.getMessage()));
                 }
@@ -596,7 +588,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             }
         }
 
-        public ListBoxModel doFillResourceGroupNameItems(@QueryParameter final String azureCredentialsId) {
+        public ListBoxModel doFillResourceGroupNameItems(@QueryParameter String azureCredentialsId) {
             ListBoxModel model = new ListBoxModel();
 
             if (StringUtils.isBlank(azureCredentialsId)
@@ -631,8 +623,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
         }
 
         public ListBoxModel doFillContainerServiceItems(
-                @QueryParameter final String azureCredentialsId,
-                @QueryParameter final String resourceGroupName) {
+                @QueryParameter String azureCredentialsId,
+                @QueryParameter String resourceGroupName) {
             ListBoxModel model = new ListBoxModel();
 
             if (StringUtils.isBlank(azureCredentialsId)
@@ -680,7 +672,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return model;
         }
 
-        public FormValidation doCheckConfigFilePaths(@QueryParameter final String value) {
+        public FormValidation doCheckConfigFilePaths(@QueryParameter String value) {
             if (value == null || value.length() == 0) {
                 return FormValidation.error(Messages.ACSDeploymentContext_configFilePathsRequired());
             }
@@ -688,7 +680,7 @@ public class ACSDeploymentContext extends AbstractBaseContext
             return FormValidation.ok();
         }
 
-        public ListBoxModel doFillSshCredentialsIdItems(@AncestorInPath final Item owner) {
+        public ListBoxModel doFillSshCredentialsIdItems(@AncestorInPath Item owner) {
             List<SSHUserPrivateKey> credentials;
             if (owner == null) {
                 credentials = CredentialsProvider.lookupCredentials(
@@ -708,8 +700,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
         }
 
         public FormValidation doCheckSecretName(
-                @QueryParameter final String containerService,
-                @QueryParameter final String value) {
+                @QueryParameter String containerService,
+                @QueryParameter String value) {
             String name = StringUtils.trimToEmpty(value);
             if (StringUtils.isEmpty(name)) {
                 return FormValidation.ok();
@@ -743,8 +735,8 @@ public class ACSDeploymentContext extends AbstractBaseContext
         }
 
         public FormValidation doCheckDcosDockerCredentialsPath(
-                @QueryParameter final String containerService,
-                @QueryParameter final String value) {
+                @QueryParameter String containerService,
+                @QueryParameter String value) {
             String path = StringUtils.trimToEmpty(value);
             if (StringUtils.isEmpty(path)) {
                 return FormValidation.ok();

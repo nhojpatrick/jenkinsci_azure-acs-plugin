@@ -7,23 +7,26 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
-import com.jcraft.jsch.JSchException;
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
-import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
-import com.microsoft.jenkins.acs.util.JSchClient;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.kubernetes.KubernetesClientWrapper;
 import hudson.EnvVars;
 import hudson.FilePath;
+import hudson.model.Job;
 import hudson.model.Run;
-import io.fabric8.kubernetes.client.KubernetesClient;
+import hudson.util.VariableResolver;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -46,150 +49,137 @@ public class KubernetesDeploymentCommandTest {
     private static final String RUN_NAME = "Test-Run";
 
     @Test
-    public void testSuccess() throws IOException, JSchException, InterruptedException {
+    public void testSuccess() throws Exception {
         ContextBuilder b = new ContextBuilder();
 
         b.executeCommand();
 
-        verify(b.externalUtils, times(1)).buildJSchClient(
+        verify(b.externalUtils, times(1)).buildSSHClient(
                 FQDN,
                 Constants.KUBERNETES_SSH_PORT,
-                ROOT_USER,
-                b.sshCredentials,
-                b.context);
-        verify(b.jSchClient, times(1)).copyFrom(any(String.class), any(File.class));
+                b.sshCredentials);
+        verify(b.sshClient, times(1)).copyFrom(any(String.class), any(OutputStream.class));
 
-        verify(b.externalUtils, times(1)).prepareKubernetesSecrets(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).createOrReplaceSecrets(
+                b.job,
                 NAMESPACE,
                 SECRET_NAME,
                 b.registryEndpoints);
 
-        verify(b.externalUtils, times(1)).applyKubernetesConfig(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).apply(
                 NAMESPACE,
-                b.configFiles,
-                true);
+                b.configFiles);
 
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
-    public void testNoRegistryCredentials() throws IOException {
+    public void testNoRegistryCredentials() throws Exception {
         ContextBuilder b = new ContextBuilder().withoutRegistryCredentials();
         b.executeCommand();
 
-        verify(b.externalUtils, never()).prepareKubernetesSecrets(
-                any(JobContext.class),
-                any(KubernetesClient.class),
+        verify(b.kubernetesClientWrapper, never()).createOrReplaceSecrets(
+                any(Job.class),
                 any(String.class),
                 any(String.class),
                 any(List.class));
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
-    public void testKubernetesNamespaceSubstitution() throws IOException, InterruptedException {
+    public void testKubernetesNamespaceSubstitution() throws Exception {
         final String ns = "namespace-in-variable";
         ContextBuilder b = new ContextBuilder()
                 .withNamespace("test-$NS")
                 .addEnvVar("NS", ns);
         b.executeCommand();
 
-        verify(b.externalUtils, times(1)).prepareKubernetesSecrets(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).createOrReplaceSecrets(
+                b.job,
                 "test-" + ns,
                 SECRET_NAME,
                 b.registryEndpoints);
 
-        verify(b.externalUtils, times(1)).applyKubernetesConfig(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).apply(
                 "test-" + ns,
-                b.configFiles,
-                true);
+                b.configFiles);
 
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
 
         b = new ContextBuilder()
                 .withNamespace("test-${NO_NS}")
                 .addEnvVar("NS", ns);
         b.executeCommand();
-        verify(b.externalUtils, times(1)).prepareKubernetesSecrets(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).createOrReplaceSecrets(
+                b.job,
                 "test-${NO_NS}",
                 SECRET_NAME,
                 b.registryEndpoints);
     }
 
     @Test
-    public void testSecretName() throws IOException {
+    public void testSecretName() throws Exception {
         ContextBuilder b = new ContextBuilder()
                 .withSecretName("secret-$BUILD_NUMBER")
                 .addEnvVar("BUILD_NUMBER", "2");
         b.executeCommand();
 
-        verify(b.externalUtils, times(1)).prepareKubernetesSecrets(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).createOrReplaceSecrets(
+                b.job,
                 NAMESPACE,
                 "secret-2",
                 b.registryEndpoints);
 
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
 
         b = new ContextBuilder().withSecretName("");
         b.executeCommand();
 
-        verify(b.externalUtils, times(1)).prepareKubernetesSecrets(
-                b.jobContext,
-                b.kubernetesClient,
+        verify(b.kubernetesClientWrapper, times(1)).createOrReplaceSecrets(
+                b.job,
                 NAMESPACE,
                 "acs-plugin-test-run", // generated from the display name of Run<?, ?>
                 b.registryEndpoints);
-        verify(b.context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(b.context, times(1)).setCommandState(CommandState.Success);
 
         // secret name length limit 253
         String secret = new String(new char[300]).replaceAll("\0{10}", "0123456789");
         final ContextBuilder b1 = new ContextBuilder().withSecretName(secret);
         b1.executeCommand();
 
-        verify(b1.externalUtils, never()).prepareKubernetesSecrets(
-                any(JobContext.class),
-                any(KubernetesClient.class),
+        verify(b1.kubernetesClientWrapper, never()).createOrReplaceSecrets(
+                any(Job.class),
                 any(String.class),
                 any(String.class),
                 any(List.class));
-        verify(b1.context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(b1.context, times(1)).setCommandState(CommandState.HasError);
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static class ContextBuilder {
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData context;
 
         JobContext jobContext;
         EnvVars envVars;
         Run<?, ?> run;
+        Job job;
         SSHUserPrivateKey sshCredentials;
         DeploymentConfig deploymentConfig;
         FilePath configFile;
         FilePath[] configFiles;
         KubernetesDeploymentCommand.ExternalUtils externalUtils;
-        JSchClient jSchClient;
-        File kubeconfigFile;
-        KubernetesClient kubernetesClient;
+        SSHClient sshClient;
+        FilePath kubeconfigFile;
+        KubernetesClientWrapper kubernetesClientWrapper;
         List<DockerRegistryEndpoint> registryEndpoints;
 
-        ContextBuilder() throws IOException {
+        ContextBuilder() throws Exception {
             this.context = mock(ACSDeploymentContext.class);
 
             final Answer<Void> answer = new Answer<Void>() {
                 @Override
                 public Void answer(InvocationOnMock invocation) throws Throwable {
-                    context.setDeploymentState(DeploymentState.HasError);
+                    context.setCommandState(CommandState.HasError);
                     return null;
                 }
             };
@@ -199,13 +189,16 @@ public class KubernetesDeploymentCommandTest {
             doAnswer(answer).when(context).logError(any(String.class), any(Exception.class));
 
             jobContext = mock(JobContext.class);
+            doReturn(mock(PrintStream.class)).when(jobContext).logger();
             envVars = new EnvVars();
-            doReturn(jobContext).when(context).jobContext();
+            doReturn(jobContext).when(context).getJobContext();
             doReturn(envVars).when(jobContext).envVars();
             run = mock(Run.class);
             //noinspection ResultOfMethodCallIgnored
             doReturn(run).when(jobContext).getRun();
             doReturn(RUN_NAME).when(run).getDisplayName();
+            job = mock(Job.class);
+            doReturn(job).when(run).getParent();
 
             sshCredentials = mock(SSHUserPrivateKey.class);
             doReturn(sshCredentials).when(context).getSshCredentials();
@@ -220,20 +213,25 @@ public class KubernetesDeploymentCommandTest {
             doReturn(configFiles).when(deploymentConfig).getConfigFiles();
 
             externalUtils = mock(KubernetesDeploymentCommand.ExternalUtils.class);
-            jSchClient = mock(JSchClient.class);
-            doReturn(jSchClient).when(externalUtils).buildJSchClient(
+            sshClient = mock(SSHClient.class);
+            doReturn(sshClient).when(externalUtils).buildSSHClient(
                     any(String.class),
                     any(Integer.TYPE),
-                    any(String.class),
-                    any(SSHUserPrivateKey.class),
-                    any(IBaseCommandData.class));
+                    any(SSHUserPrivateKey.class));
+            doReturn(sshClient).when(sshClient).withLogger(any(PrintStream.class));
+            doReturn(sshClient).when(sshClient).connect();
 
-            kubeconfigFile = mock(File.class);
+            kubeconfigFile = mock(FilePath.class);
+            FilePath workspace = mock(FilePath.class);
+            doReturn(workspace).when(jobContext).getWorkspace();
+            doReturn(kubeconfigFile).when(workspace).createTempFile(any(String.class), any(String.class));
+            doReturn("kubeconfig").when(kubeconfigFile).getRemote();
+            doReturn(mock(OutputStream.class)).when(kubeconfigFile).write();
 
-            doReturn(kubeconfigFile).when(externalUtils).createTempConfigFile();
-
-            kubernetesClient = mock(KubernetesClient.class);
-            doReturn(kubernetesClient).when(externalUtils).buildKubernetesClient(any(File.class));
+            kubernetesClientWrapper = mock(KubernetesClientWrapper.class);
+            doReturn(kubernetesClientWrapper).when(externalUtils).buildKubernetesClientWrapper(any(String.class));
+            doReturn(kubernetesClientWrapper).when(kubernetesClientWrapper).withLogger(any(PrintStream.class));
+            doReturn(kubernetesClientWrapper).when(kubernetesClientWrapper).withVariableResolver(any(VariableResolver.class));
 
             registryEndpoints = mock(List.class);
             doReturn(false).when(registryEndpoints).isEmpty();
@@ -270,7 +268,12 @@ public class KubernetesDeploymentCommandTest {
         }
 
         void executeCommand() {
-            new KubernetesDeploymentCommand(externalUtils).execute(context);
+            new KubernetesDeploymentCommand(externalUtils) {
+                @Override
+                String clusterNameFromConfig(String kubeconfigFile) throws IOException {
+                    return "";
+                }
+            }.execute(context);
         }
     }
 }

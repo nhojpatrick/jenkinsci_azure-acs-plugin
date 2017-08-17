@@ -8,7 +8,7 @@ import java.util.List;
 
 public class KubernetesDeploymentConfig extends DeploymentConfig {
 
-    public KubernetesDeploymentConfig(final FilePath[] configFiles) {
+    public KubernetesDeploymentConfig(FilePath[] configFiles) {
         super(configFiles);
     }
 

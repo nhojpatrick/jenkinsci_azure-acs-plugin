@@ -6,8 +6,11 @@
 
 package com.microsoft.jenkins.acs.commands;
 
-import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
 import hudson.model.Result;
 
 /**
@@ -15,17 +18,17 @@ import hudson.model.Result;
  */
 public class CheckBuildResultCommand implements ICommand<CheckBuildResultCommand.ICheckBuildResultCommandData> {
     @Override
-    public void execute(final ICheckBuildResultCommandData context) {
-        final JobContext jobContext = context.jobContext();
+    public void execute(ICheckBuildResultCommandData context) {
+        final JobContext jobContext = context.getJobContext();
         final RunOn runOn = context.getRunOnOption();
         final Result result = jobContext.getRun().getResult();
 
         if (runOn.shouldRunOn(result)) {
             context.logStatus(Messages.CheckBuildResultCommand_continue(result));
-            context.setDeploymentState(DeploymentState.Success);
+            context.setCommandState(CommandState.Success);
         } else {
             context.logStatus(Messages.CheckBuildResultCommand_abort(result));
-            context.setDeploymentState(DeploymentState.Done);
+            context.setCommandState(CommandState.Done);
         }
     }
 

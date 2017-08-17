@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public final class JsonHelper {
-    public static String getMarathonAppId(final InputStream in) throws IOException {
+    public static String getMarathonAppId(InputStream in) throws IOException {
         try {
             final ObjectMapper mapper = new ObjectMapper();
             JsonNode parentNode = mapper.readTree(in);

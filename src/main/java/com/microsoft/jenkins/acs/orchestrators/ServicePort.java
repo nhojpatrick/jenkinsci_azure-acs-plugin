@@ -10,7 +10,7 @@ public class ServicePort {
     private final int containerPort;
     private final Protocol protocol;
 
-    public ServicePort(final int hostPort, final int containerPort, final Protocol protocol) {
+    public ServicePort(int hostPort, int containerPort, Protocol protocol) {
         this.hostPort = hostPort;
         this.containerPort = containerPort;
         this.protocol = protocol;
@@ -38,7 +38,7 @@ public class ServicePort {
         }
     }
 
-    public boolean matchesLoadBalancingRule(final LoadBalancingRule rule) {
+    public boolean matchesLoadBalancingRule(LoadBalancingRule rule) {
         return rule.frontendPort() == hostPort && rule.protocol().equals(getTransportProtocol());
     }
 
@@ -48,7 +48,7 @@ public class ServicePort {
     }
 
     @Override
-    public boolean equals(final Object obj) {
+    public boolean equals(Object obj) {
         if (!(obj instanceof ServicePort)) {
             return false;
         } else if (obj == this) {

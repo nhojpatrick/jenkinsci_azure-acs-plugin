@@ -9,7 +9,7 @@ public abstract class DeploymentConfig {
 
     private final FilePath[] configFiles;
 
-    public DeploymentConfig(final FilePath[] configFiles) {
+    public DeploymentConfig(FilePath[] configFiles) {
         this.configFiles = configFiles;
     }
 
@@ -17,18 +17,18 @@ public abstract class DeploymentConfig {
         return configFiles;
     }
 
-    public abstract  String getResourcePrefix();
+    public abstract String getResourcePrefix();
 
     public abstract List<ServicePort> getServicePorts()
             throws IOException, InvalidFormatException, InterruptedException;
 
     public static final class InvalidFormatException extends Exception {
 
-        public InvalidFormatException(final String msg) {
+        public InvalidFormatException(String msg) {
             super(msg);
         }
 
-        public InvalidFormatException(final Exception ex) {
+        public InvalidFormatException(Exception ex) {
             super(ex);
         }
 

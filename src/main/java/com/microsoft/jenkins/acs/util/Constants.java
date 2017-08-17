@@ -8,7 +8,6 @@ package com.microsoft.jenkins.acs.util;
 
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -16,8 +15,6 @@ import java.util.regex.Pattern;
 
 public final class Constants {
     public static final String INVALID_OPTION = "*";
-
-    public static final File TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
 
     public static final String KUBECONFIG_FILE = ".kube/config";
 
@@ -34,7 +31,14 @@ public final class Constants {
      */
     public static final int LOWEST_PRIORITY = 4096;
 
-    public static final int READ_BUFFER_SIZE = 1024;
+    /**
+     * URI scheme prefix (scheme://) pattern.
+     *
+     * The scheme consists of a sequence of characters beginning with a letter and followed by any combination of
+     * letters, digits, plus (+), period (.), or hyphen (-).
+     */
+    public static final Pattern URI_SCHEME_PREFIX =
+            Pattern.compile("^[a-z][a-z0-9+.\\-]*://", Pattern.CASE_INSENSITIVE);
 
     /**
      * Length limit for the Kubernetes names.
@@ -73,7 +77,7 @@ public final class Constants {
     public static final int KUBERNETES_SSH_PORT = 22;
     public static final int SWARM_SSH_PORT = 2200;
 
-    public static int sshPort(final ContainerServiceOchestratorTypes type) {
+    public static int sshPort(ContainerServiceOchestratorTypes type) {
         switch (type) {
             case DCOS:
                 return DCOS_SSH_PORT;

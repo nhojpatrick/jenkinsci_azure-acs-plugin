@@ -10,11 +10,14 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
 
 public class GetContainerServiceInfoCommand
         implements ICommand<GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData> {
     @Override
-    public void execute(final IGetContainerServiceInfoCommandData context) {
+    public void execute(IGetContainerServiceInfoCommandData context) {
         context.logStatus(Messages.GetContainserServiceInfoCommand_getFQDN());
         final Azure azureClient = context.getAzureClient();
         final String resourceGroupName = context.getResourceGroupName();
@@ -50,10 +53,16 @@ public class GetContainerServiceInfoCommand
         context.logStatus(Messages.GetContainserServiceInfoCommand_adminUser(adminUser));
         context.setLinuxRootUsername(adminUser);
 
-        context.setDeploymentState(DeploymentState.Success);
+        context.setCommandState(CommandState.Success);
     }
 
     public interface IGetContainerServiceInfoCommandData extends IBaseCommandData {
+        Azure getAzureClient();
+
+        String getResourceGroupName();
+
+        String getContainerServiceName();
+
         void setMgmtFQDN(String mgmtFQDN);
 
         void setLinuxRootUsername(String linuxAdminUsername);

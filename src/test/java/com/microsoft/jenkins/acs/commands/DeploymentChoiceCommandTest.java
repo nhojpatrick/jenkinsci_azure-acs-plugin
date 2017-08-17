@@ -8,12 +8,12 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -30,7 +30,7 @@ public class DeploymentChoiceCommandTest {
         DeploymentChoiceCommand.IDeploymentChoiceCommandData context = prepareContext(null);
         new DeploymentChoiceCommand().execute(context);
 
-        verify(context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
@@ -39,7 +39,7 @@ public class DeploymentChoiceCommandTest {
                 ContainerServiceOchestratorTypes.CUSTOM);
         new DeploymentChoiceCommand().execute(context);
 
-        verify(context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
@@ -65,10 +65,9 @@ public class DeploymentChoiceCommandTest {
         DeploymentChoiceCommand command = new DeploymentChoiceCommand();
         command.execute(context);
 
-        verify(context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(context, times(1)).setCommandState(CommandState.Success);
 
-        assertEquals(clazz, command.getSuccess());
-        assertNull(command.getFail());
+        assertEquals(clazz, command.nextCommand());
     }
 
     private DeploymentChoiceCommand.IDeploymentChoiceCommandData prepareContext(
@@ -79,7 +78,7 @@ public class DeploymentChoiceCommandTest {
         doAnswer(new Answer() {
             @Override
             public Object answer(final InvocationOnMock invocationOnMock) throws Throwable {
-                context.setDeploymentState(DeploymentState.HasError);
+                context.setCommandState(CommandState.HasError);
                 return null;
             }
         }).when(context).logError(any(String.class));

@@ -17,12 +17,12 @@ import org.apache.commons.lang.StringUtils;
  */
 public final class AzureHelper {
 
-    public static Azure buildClientFromServicePrincipal(final AzureCredentials.ServicePrincipal servicePrincipal) {
+    public static Azure buildClientFromServicePrincipal(AzureCredentials.ServicePrincipal servicePrincipal) {
         AzureTokenCredentials credentials = DependencyMigration.buildAzureTokenCredentials(servicePrincipal);
         return Azure.authenticate(credentials).withSubscription(servicePrincipal.getSubscriptionId());
     }
 
-    public static Azure buildClientFromCredentialsId(final String azureCredentialsId) {
+    public static Azure buildClientFromCredentialsId(String azureCredentialsId) {
         AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
         if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
             throw new IllegalArgumentException(Messages.AzureHelper_servicePrincipalNotFound(azureCredentialsId));

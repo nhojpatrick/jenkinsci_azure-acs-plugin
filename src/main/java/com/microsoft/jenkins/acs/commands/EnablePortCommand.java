@@ -21,6 +21,9 @@ import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,13 +37,13 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     public static final int LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES = 5;
 
     static final class InvalidConfigException extends Exception {
-        InvalidConfigException(final String message) {
+        InvalidConfigException(String message) {
             super(message);
         }
     }
 
     @Override
-    public void execute(final IEnablePortCommandData context) {
+    public void execute(IEnablePortCommandData context) {
         Azure azureClient = context.getAzureClient();
         String resourceGroupName = context.getResourceGroupName();
         try {
@@ -57,7 +60,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
             createLoadBalancerRules(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
 
-            context.setDeploymentState(DeploymentState.Success);
+            context.setCommandState(CommandState.Success);
         } catch (IOException | InvalidConfigException | DeploymentConfig.InvalidFormatException e) {
             context.logError(e);
         } catch (InterruptedException e) {
@@ -67,11 +70,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     static int filterPortsToOpen(
-            final IBaseCommandData context,
-            final Collection<NetworkSecurityRule> rules,
-            final Set<Integer> portsToOpen) throws InvalidConfigException {
+            IBaseCommandData context,
+            Collection<NetworkSecurityRule> rules,
+            Set<Integer> portsToOpen) throws InvalidConfigException {
         int maxPriority = Integer.MIN_VALUE;
-        for (final NetworkSecurityRule rule : rules) {
+        for (NetworkSecurityRule rule : rules) {
             final int priority = rule.priority();
             if (priority > maxPriority) {
                 maxPriority = priority;
@@ -114,7 +117,8 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                             Messages.EnablePortCommand_securityRuleInvalidDestinationPortRange(ruleDestPortRange));
                 }
 
-                for (Iterator<Integer> it = portsToOpen.iterator(); it.hasNext();) {
+                Iterator<Integer> it = portsToOpen.iterator();
+                while (it.hasNext()) {
                     final int port = it.next();
                     if (port >= portStart && port <= portEnd) {
                         // Port already allowed
@@ -137,18 +141,18 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     static void createSecurityRules(
-            final IBaseCommandData context,
-            final Azure azureClient,
-            final String resourceGroupName,
-            final String resourcePrefix,
-            final List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
+            IBaseCommandData context,
+            Azure azureClient,
+            String resourceGroupName,
+            String resourcePrefix,
+            List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
 
         if (servicePorts.isEmpty()) {
             return;
         }
 
         Set<Integer> portsToOpen = new HashSet<Integer>();
-        for (final ServicePort servicePort : servicePorts) {
+        for (ServicePort servicePort : servicePorts) {
             portsToOpen.add(servicePort.getHostPort());
         }
 
@@ -174,7 +178,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
         // Create security rules for ports not opened
         final NetworkSecurityGroup.Update update = nsgPublicAgent.update();
-        for (final int port : portsToOpen) {
+        for (int port : portsToOpen) {
             context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(String.valueOf(port)));
 
             maxPriority = maxPriority + Constants.PRIORITY_STEP;
@@ -201,11 +205,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     static void createLoadBalancerRules(
-            final IBaseCommandData context,
-            final Azure azureClient,
-            final String resourceGroupName,
-            final String resourcePrefix,
-            final List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
+            IBaseCommandData context,
+            Azure azureClient,
+            String resourceGroupName,
+            String resourcePrefix,
+            List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
 
         if (servicePorts.isEmpty()) {
             return;
@@ -277,6 +281,10 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     public interface IEnablePortCommandData extends IBaseCommandData {
+        Azure getAzureClient();
+
+        String getResourceGroupName();
+
         DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
     }
 }

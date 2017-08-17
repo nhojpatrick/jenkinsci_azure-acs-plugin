@@ -6,7 +6,6 @@
 
 package com.microsoft.jenkins.acs;
 
-import com.microsoft.jenkins.acs.services.CommandService;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -28,8 +27,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
     private ACSDeploymentContext context;
 
     @DataBoundConstructor
-    public ACSDeploymentRecorder(
-            final ACSDeploymentContext context) {
+    public ACSDeploymentRecorder(ACSDeploymentContext context) {
         this.context = context;
     }
 
@@ -44,22 +42,17 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
 
     @Override
     public void perform(
-            @Nonnull final Run<?, ?> run,
-            @Nonnull final FilePath workspace,
-            @Nonnull final Launcher launcher,
-            @Nonnull final TaskListener listener) throws IOException, InterruptedException {
+            @Nonnull Run<?, ?> run,
+            @Nonnull FilePath workspace,
+            @Nonnull Launcher launcher,
+            @Nonnull TaskListener listener) throws IOException, InterruptedException {
         listener.getLogger().println(Messages.ACSDeploymentRecorder_starting());
-        this.context.configure(
-                run,
-                workspace,
-                launcher,
-                listener);
+        this.context.configure(run, workspace, launcher, listener);
+        this.context.executeCommands();
 
-        CommandService.executeCommands(context);
-
-        if (context.getHasError()) {
+        if (context.getLastCommandState().isError()) {
             listener.getLogger().println(
-                    Messages.ACSDeploymentRecorder_endWithErrorState(context.getDeploymentState()));
+                    Messages.ACSDeploymentRecorder_endWithErrorState(context.getCommandState()));
             run.setResult(Result.FAILURE);
         } else {
             listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
@@ -77,7 +70,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
     @Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
 
-        public boolean isApplicable(final Class<? extends AbstractProject> aClass) {
+        public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types
             return true;
         }

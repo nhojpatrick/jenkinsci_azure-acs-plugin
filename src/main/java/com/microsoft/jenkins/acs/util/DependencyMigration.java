@@ -20,7 +20,7 @@ import java.util.Map;
  */
 public final class DependencyMigration {
     public static AzureTokenCredentials buildAzureTokenCredentials(
-            final AzureCredentials.ServicePrincipal servicePrincipal) {
+            AzureCredentials.ServicePrincipal servicePrincipal) {
         return new ApplicationTokenCredentials(
                 servicePrincipal.getClientId(),
                 servicePrincipal.getTenant(),
@@ -37,7 +37,7 @@ public final class DependencyMigration {
      * @return The {@link AzureEnvironment} instance suitable for the Azure SDK used in this plugin
      */
     public static AzureEnvironment buildAzureEnvironment(
-            final AzureCredentials.ServicePrincipal servicePrincipal) {
+            AzureCredentials.ServicePrincipal servicePrincipal) {
         final String managementEndpoint = servicePrincipal.getServiceManagementURL();
         final String activeDirectoryEndpoint = servicePrincipal.getAuthenticationEndpoint();
         final String resourceManagerEndpoint = servicePrincipal.getResourceManagerEndpoint();
@@ -58,10 +58,10 @@ public final class DependencyMigration {
     }
 
     private static AzureEnvironment resolveEnvironment(
-            final String managementEndpointUrl,
-            final String activeDirectoryEndpointUrl,
-            final String resourceManagerEndpointUrl,
-            final String graphEndpointUrl) {
+            String managementEndpointUrl,
+            String activeDirectoryEndpointUrl,
+            String resourceManagerEndpointUrl,
+            String graphEndpointUrl) {
         for (AzureEnvironment env : AzureEnvironment.knownEnvironments()) {
             if (sameUrl(env.managementEndpoint(), managementEndpointUrl)
                     && sameUrl(env.activeDirectoryEndpoint(), activeDirectoryEndpointUrl)
@@ -73,7 +73,7 @@ public final class DependencyMigration {
         return null;
     }
 
-    private static boolean sameUrl(final String base, final String target) {
+    private static boolean sameUrl(String base, String target) {
         if (StringUtils.isBlank(target)) {
             return false;
         }

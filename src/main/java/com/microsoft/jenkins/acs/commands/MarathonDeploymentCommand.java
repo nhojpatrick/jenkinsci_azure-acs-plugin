@@ -13,20 +13,23 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.google.common.annotations.VisibleForTesting;
 import com.jcraft.jsch.JSchException;
-import com.microsoft.jenkins.acs.JobContext;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
-import com.microsoft.jenkins.acs.util.DockerConfigBuilder;
-import com.microsoft.jenkins.acs.util.JSchClient;
 import com.microsoft.jenkins.acs.util.JsonHelper;
+import com.microsoft.jenkins.azurecommons.EnvironmentInjector;
+import com.microsoft.jenkins.azurecommons.JobContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.kubernetes.util.DockerConfigBuilder;
 import hudson.EnvVars;
 import hudson.FilePath;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
 
-import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,18 +48,15 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     }
 
     @VisibleForTesting
-    MarathonDeploymentCommand(final ExternalUtils externalUtils) {
+    MarathonDeploymentCommand(ExternalUtils externalUtils) {
         this.externalUtils = externalUtils;
     }
 
     @Override
-    public void execute(final IMarathonDeploymentCommandData context) {
+    public void execute(IMarathonDeploymentCommandData context) {
         final String host = context.getMgmtFQDN();
         final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        final String linuxAdminUsername = context.getLinuxAdminUsername();
-        final JobContext jobContext = context.jobContext();
-
-        JSchClient client = null;
+        final JobContext jobContext = context.getJobContext();
 
         try {
             final DeploymentConfig config = context.getDeploymentConfig();
@@ -71,63 +71,63 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 return;
             }
 
-            client = externalUtils.buildJSchClient(
-                    host, Constants.DCOS_SSH_PORT, linuxAdminUsername, sshCredentials, context);
+            SSHClient client =
+                    externalUtils.buildSSHClient(host, Constants.DCOS_SSH_PORT, sshCredentials)
+                            .withLogger(jobContext.logger());
 
-            copyCredentialsToAgents(context, jobContext, client);
+            try (SSHClient connected = client.connect()) {
+                copyCredentialsToAgents(context, jobContext, connected);
 
-            for (FilePath configPath : configPaths) {
-                String deployedFilename = externalUtils.buildRemoteDeployConfigName();
-                context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
-                        configPath.toURI(), client.getHost(), deployedFilename));
+                for (FilePath configPath : configPaths) {
+                    String deployedFilename = externalUtils.buildRemoteDeployConfigName();
+                    context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
+                            configPath.toURI(), connected.getHost(), deployedFilename));
 
-                ByteArrayInputStream in = jobContext.replaceMacro(
-                        configPath.read(), context.isEnableConfigSubstitution());
+                    ByteArrayInputStream in = jobContext.replaceMacro(
+                            configPath.read(), context.isEnableConfigSubstitution());
 
-                client.copyTo(in, deployedFilename);
-                in.reset();
-                String appId = externalUtils.getMarathonAppId(in);
-                //ignore if app does not exist
-                context.logStatus(Messages.MarathonDeploymentCommand_deletingApp(appId));
-                client.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);
-                context.logStatus(Messages.MarathonDeploymentCommand_deployingApp(deployedFilename, appId));
-                // NB. about "?force=true"
-                // Sometimes the deployment gets rejected after the previous delete of the same application ID
-                // with the following message:
-                //
-                // App is locked by one or more deployments. Override with the option '?force=true'.
-                // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
-                client.execRemote("curl -i -H 'Content-Type: application/json' -d@'"
-                        + deployedFilename + "' http://localhost/marathon/v2/apps?force=true");
+                    connected.copyTo(in, deployedFilename);
+                    in.reset();
+                    String appId = externalUtils.getMarathonAppId(in);
+                    //ignore if app does not exist
+                    context.logStatus(Messages.MarathonDeploymentCommand_deletingApp(appId));
+                    connected.execRemote("curl -i -X DELETE http://localhost/marathon/v2/apps/" + appId);
+                    context.logStatus(Messages.MarathonDeploymentCommand_deployingApp(deployedFilename, appId));
+                    // NB. about "?force=true"
+                    // Sometimes the deployment gets rejected after the previous delete of the same application ID
+                    // with the following message:
+                    //
+                    // App is locked by one or more deployments. Override with the option '?force=true'.
+                    // View details at '/v2/deployments/<DEPLOYMENT_ID>'.
+                    connected.execRemote("curl -i -H 'Content-Type: application/json' -d@'"
+                            + deployedFilename + "' http://localhost/marathon/v2/apps?force=true");
 
-                context.logStatus(Messages.MarathonDeploymentCommand_removeTempFile(deployedFilename));
+                    context.logStatus(Messages.MarathonDeploymentCommand_removeTempFile(deployedFilename));
 
-                client.execRemote(String.format("rm -f -- '%s'", deployedFilename));
+                    connected.execRemote(String.format("rm -f -- '%s'", deployedFilename));
+                }
             }
-            context.setDeploymentState(DeploymentState.Success);
+            context.setCommandState(CommandState.Success);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             context.logError(e);
-        } catch (JSchException | IOException | IllegalArgumentException e) {
+        } catch (Exception e) {
             context.logError(e);
-        } finally {
-            if (client != null) {
-                client.close();
-            }
         }
     }
 
     private void copyCredentialsToAgents(
-            final IMarathonDeploymentCommandData context,
-            final JobContext jobContext,
-            final JSchClient client) throws IOException, InterruptedException, JSchException {
+            IMarathonDeploymentCommandData context,
+            JobContext jobContext,
+            SSHClient client
+    ) throws Exception {
         final EnvVars envVars = jobContext.envVars();
         final List<DockerRegistryEndpoint> containerRegistryCredentials = context.getContainerRegistryCredentials();
         final String linuxAdminUsername = context.getLinuxAdminUsername();
 
         if (!containerRegistryCredentials.isEmpty()) {
             DockerConfigBuilder configBuilder = externalUtils.buildDockerConfigBuilder(containerRegistryCredentials);
-            FilePath dockercfg = configBuilder.buildArchiveForMarathon(jobContext);
+            FilePath dockercfg = configBuilder.buildArchive(jobContext.getWorkspace(), jobContext.getRun().getParent());
             try {
                 String remotePath = prepareCredentialsPath(
                         context.getDcosDockerCredentialsPath(), jobContext, envVars, linuxAdminUsername);
@@ -139,20 +139,19 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                     context.logStatus(Messages.MarathonDeploymentCommand_prepareDockerCredentialsFor(agent));
 
                     // tunnel through the master SSH connection to connect to the agent SSH service
-                    JSchClient forwardClient = client.forwardSSH(agent, Constants.DEFAULT_SSH_PORT);
-                    try {
+                    SSHClient forwardClient =
+                            client.forwardSSH(agent, Constants.DEFAULT_SSH_PORT).withLogger(jobContext.logger());
+                    try (SSHClient connected = forwardClient.connect()) {
                         // prepare the remote directory structure
-                        forwardClient.execRemote("mkdir -p -- '" + escapeSingleQuote(remotePath) + "'");
+                        connected.execRemote("mkdir -p -- '" + escapeSingleQuote(remotePath) + "'");
 
                         context.logStatus(Messages.MarathonDeploymentCommand_copyDockerCfgTo(
-                                dockercfg.getRemote(), forwardClient.getHost(), dockerArchivePath));
-                        forwardClient.copyTo(dockercfg.read(), dockerArchivePath);
+                                dockercfg.getRemote(), agent, dockerArchivePath));
+                        connected.copyTo(dockercfg.read(), dockerArchivePath);
 
                         if (context.isDcosDockerCredenditalsPathShared()) {
                             context.logStatus(Messages.MarathonDeploymentCommand_skipAsPathShared());
                         }
-                    } finally {
-                        forwardClient.close();
                     }
                 }
 
@@ -163,7 +162,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 // inject the environment variable
                 context.logStatus(Messages.MarathonDeploymentCommand_injectEnvironmentVar(
                         Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
-                DeployHelper.injectEnvironmentVariable(
+                EnvironmentInjector.inject(
                         jobContext.getRun(), Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
             } finally {
                 dockercfg.delete();
@@ -171,7 +170,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         }
     }
 
-    private static List<String> getAgentNodes(final JSchClient client) throws JSchException, IOException {
+    private static List<String> getAgentNodes(
+            SSHClient client) throws Exception {
         final String command = "curl http://leader.mesos:1050/system/health/v1/nodes";
         String output = client.execRemote(command);
 
@@ -183,7 +183,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
         return hosts;
     }
 
-    private static List<String> getAgentNodes(final String json) {
+    private static List<String> getAgentNodes(String json) {
         // sample input
         // {
         //     "nodes": [
@@ -217,10 +217,10 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
     }
 
     private static String prepareCredentialsPath(
-            final String dcosDockerCredentialsPath,
-            final JobContext jobContext,
-            final EnvVars envVars,
-            final String linuxAdminUsername) {
+            String dcosDockerCredentialsPath,
+            JobContext jobContext,
+            EnvVars envVars,
+            String linuxAdminUsername) {
         String name = StringUtils.trimToEmpty(envVars.expand(dcosDockerCredentialsPath));
         if (StringUtils.isNotBlank(name)) {
             if (name.charAt(0) != '/') {
@@ -237,7 +237,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 + nameForBuild(jobContext);
     }
 
-    private static String nameForBuild(final JobContext jobContext) {
+    private static String nameForBuild(JobContext jobContext) {
         String runName = StringUtils.trimToEmpty(
                 jobContext.getRun().getParent().getName() + jobContext.getRun().getDisplayName());
         if (StringUtils.isBlank(runName)) {
@@ -248,15 +248,13 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
     @VisibleForTesting
     interface ExternalUtils {
-        JSchClient buildJSchClient(String host,
-                                   int port,
-                                   @Nullable String username,
-                                   SSHUserPrivateKey credentials,
-                                   @Nullable IBaseCommandData context);
+        SSHClient buildSSHClient(String host,
+                                 int port,
+                                 SSHUserPrivateKey credentials) throws JSchException;
 
         DockerConfigBuilder buildDockerConfigBuilder(List<DockerRegistryEndpoint> endpoints);
 
-        List<String> getAgentNodes(final JSchClient client) throws JSchException, IOException;
+        List<String> getAgentNodes(SSHClient client) throws Exception;
 
         String buildRemoteDeployConfigName();
 
@@ -264,22 +262,20 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         ExternalUtils DEFAULT = new ExternalUtils() {
             @Override
-            public JSchClient buildJSchClient(
-                    final String host,
-                    final int port,
-                    @Nullable final String username,
-                    final SSHUserPrivateKey credentials,
-                    @Nullable final IBaseCommandData context) {
-                return new JSchClient(host, port, username, credentials, context);
+            public SSHClient buildSSHClient(
+                    String host,
+                    int port,
+                    SSHUserPrivateKey credentials) throws JSchException {
+                return new SSHClient(host, port, credentials);
             }
 
             @Override
-            public DockerConfigBuilder buildDockerConfigBuilder(final List<DockerRegistryEndpoint> endpoints) {
+            public DockerConfigBuilder buildDockerConfigBuilder(List<DockerRegistryEndpoint> endpoints) {
                 return new DockerConfigBuilder(endpoints);
             }
 
             @Override
-            public List<String> getAgentNodes(final JSchClient client) throws JSchException, IOException {
+            public List<String> getAgentNodes(SSHClient client) throws Exception {
                 return MarathonDeploymentCommand.getAgentNodes(client);
             }
 
@@ -289,7 +285,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             }
 
             @Override
-            public String getMarathonAppId(final InputStream in) throws IOException {
+            public String getMarathonAppId(InputStream in) throws IOException {
                 return JsonHelper.getMarathonAppId(in);
             }
         };

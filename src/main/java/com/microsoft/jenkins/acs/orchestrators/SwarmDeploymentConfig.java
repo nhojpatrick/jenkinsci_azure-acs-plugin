@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 
 public class SwarmDeploymentConfig extends DeploymentConfig {
 
-    public SwarmDeploymentConfig(final FilePath[] configFiles) {
+    public SwarmDeploymentConfig(FilePath[] configFiles) {
         super(configFiles);
     }
 
@@ -31,7 +31,7 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
         final ArrayList<ServicePort> servicePorts = new ArrayList<ServicePort>();
 
         final FilePath[] configFiles = getConfigFiles();
-        for (final FilePath configFile : configFiles) {
+        for (FilePath configFile : configFiles) {
             try (InputStream cfgFile = configFile.read()) {
                 Yaml yaml = new Yaml();
                 Map<String, Object> root = (Map<String, Object>) yaml.load(cfgFile);
@@ -78,28 +78,28 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
     }
 
     /**
-     * Modified from https://github.com/docker/docker-py/blob/master/docker/utils/ports.py#L3
+     * Modified from https://github.com/docker/docker-py/blob/master/docker/utils/ports.py#L3 .
      */
     private static final Pattern PATTERN_PORT_SPEC = Pattern.compile(""
-        + "^"                                           // Match full string
-        + "("                                           // External part
-        + "((?<host>[a-fA-F\\d.:]+):)?"                 // Address
-        + "(?<ext>[\\d]*)(-(?<extEnd>[\\d]+))?:"        // External range
-        + ")?"
-        + "(?<int>[\\d]+)(-(?<intEnd>[\\d]+))?"         // Internal range
-        + "(?<proto>/(udp|tcp))?"                       // Protocol
-        + "$"                                           // Match full string
+            + "^"                                           // Match full string
+            + "("                                           // External part
+            + "((?<host>[a-fA-F\\d.:]+):)?"                 // Address
+            + "(?<ext>[\\d]*)(-(?<extEnd>[\\d]+))?:"        // External range
+            + ")?"
+            + "(?<int>[\\d]+)(-(?<intEnd>[\\d]+))?"         // Internal range
+            + "(?<proto>/(udp|tcp))?"                       // Protocol
+            + "$"                                           // Match full string
     );
 
     /**
-     * Parse ports in short syntax
+     * Parse ports in short syntax.
      *
      * @param def Ports definition in short syntax
      * @return List of ServicePort
      * @throws InvalidFormatException
      * @see <a href="https://docs.docker.com/compose/compose-file/#ports">Docker Compose - Ports</a>
      */
-    private List<ServicePort> parsePortShortSyntax(final String def) throws InvalidFormatException {
+    private List<ServicePort> parsePortShortSyntax(String def) throws InvalidFormatException {
         final Matcher m = PATTERN_PORT_SPEC.matcher(def);
         if (!m.matches()) {
             throw new InvalidFormatException(Messages.SwarmDeploymentConfig_invalidPortSyntax(def));
@@ -152,15 +152,16 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
 
         return servicePorts;
     }
+
     /**
-     * Parse ports in long syntax
+     * Parse ports in long syntax.
      *
      * @param node Node of port definition
      * @return List of ServicePort
      * @throws InvalidFormatException
      * @see <a href="https://docs.docker.com/compose/compose-file/#ports">Docker Compose - Ports</a>
      */
-    private List<ServicePort> parsePortLongSyntax(final Map node) throws InvalidFormatException {
+    private List<ServicePort> parsePortLongSyntax(Map node) throws InvalidFormatException {
         final Object targetNode = node.get("target");
         if (targetNode == null || !(targetNode instanceof Integer)) {
             throw new InvalidFormatException(Messages.SwarmDeploymentConfig_noTargetPort());

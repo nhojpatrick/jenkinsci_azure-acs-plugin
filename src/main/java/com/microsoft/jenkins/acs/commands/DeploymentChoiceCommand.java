@@ -9,6 +9,10 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
+import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
+import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.command.INextCommandAware;
 
 /**
  * Makes decision on which deployment method to be used based on the configuration.
@@ -18,7 +22,7 @@ public class DeploymentChoiceCommand
     private ContainerServiceOchestratorTypes orchestratorType;
 
     @Override
-    public void execute(final IDeploymentChoiceCommandData context) {
+    public void execute(IDeploymentChoiceCommandData context) {
         ContainerServiceOchestratorTypes type = context.getOrchestratorType();
         if (type == null) {
             context.logError(Messages.DeploymentChoiceCommand_orchestratorNotFound());
@@ -29,11 +33,11 @@ public class DeploymentChoiceCommand
             return;
         }
         this.orchestratorType = type;
-        context.setDeploymentState(DeploymentState.Success);
+        context.setCommandState(CommandState.Success);
     }
 
     @Override
-    public Class getSuccess() {
+    public Class nextCommand() {
         switch (orchestratorType) {
             case KUBERNETES:
                 return KubernetesDeploymentCommand.class;
@@ -45,11 +49,6 @@ public class DeploymentChoiceCommand
                 throw new IllegalStateException(
                         Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
         }
-    }
-
-    @Override
-    public Class getFail() {
-        return null;
     }
 
     public interface IDeploymentChoiceCommandData extends IBaseCommandData {

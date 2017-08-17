@@ -11,6 +11,7 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.compute.ContainerServices;
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
+import com.microsoft.jenkins.azurecommons.command.CommandState;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -44,7 +45,7 @@ public class GetContainerServiceInfoCommandTest {
         verify(context, times(1)).setMgmtFQDN(FQDN);
         verify(context, times(1)).setLinuxRootUsername(ROOT_USER);
 
-        verify(context, times(1)).setDeploymentState(DeploymentState.Success);
+        verify(context, times(1)).setCommandState(CommandState.Success);
     }
 
     @Test
@@ -55,7 +56,7 @@ public class GetContainerServiceInfoCommandTest {
 
         verify(context, never()).setMgmtFQDN(any(String.class));
         verify(context, never()).setLinuxRootUsername(any(String.class));
-        verify(context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(context, times(1)).setCommandState(CommandState.HasError);
     }
 
     @Test
@@ -66,7 +67,7 @@ public class GetContainerServiceInfoCommandTest {
 
         verify(context, never()).setMgmtFQDN(any(String.class));
         verify(context, never()).setLinuxRootUsername(any(String.class));
-        verify(context, times(1)).setDeploymentState(DeploymentState.HasError);
+        verify(context, times(1)).setCommandState(CommandState.HasError);
     }
 
     private GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData prepareContext(
@@ -78,7 +79,7 @@ public class GetContainerServiceInfoCommandTest {
         doAnswer(new Answer() {
             @Override
             public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                context.setDeploymentState(DeploymentState.HasError);
+                context.setCommandState(CommandState.HasError);
                 return null;
             }
         }).when(context).logError(any(String.class));

@@ -9,5 +9,5 @@
   This view is used to render the installed plugins page.
 -->
 <div>
-    Helps to deploy projects to Azure Container Service. Supported orchestrator: Kubernetes, DC/OS.
+    Deploy Kubernetes, DC/OS, Docker Swarm application configurations to Azure Container Service cluster.
 </div>
