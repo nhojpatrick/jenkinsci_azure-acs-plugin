@@ -121,7 +121,7 @@ public class ACSDeploymentContext extends BaseCommandContext
 
     @Override
     public StepExecution start(StepContext context) throws Exception {
-        return new ExecutionImpl(new ACSDeploymentRecorder(this), context);
+        return new ExecutionImpl(new ACSDeploymentBuilder(this), context);
     }
 
     @Override
