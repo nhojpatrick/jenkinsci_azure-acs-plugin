@@ -163,7 +163,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
                 context.logStatus(Messages.MarathonDeploymentCommand_injectEnvironmentVar(
                         Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
                 EnvironmentInjector.inject(
-                        jobContext.getRun(), Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
+                        jobContext.getRun(), envVars, Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
             } finally {
                 dockercfg.delete();
             }
