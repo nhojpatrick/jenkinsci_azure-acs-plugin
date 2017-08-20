@@ -13,7 +13,7 @@ Behaviour.specify("select[name$=containerService]", 'hide-optional-based-on-orch
         var isSwarm = /\|\s*swarm$/i.test(value);
         var isDCOS = /\|\s*dcos$/i.test(value);
 
-        setElementVisibility(isKubernetes, 'kubernetesNamespace', 'secretName');
+        setElementVisibility(isKubernetes, 'secretName', 'secretNamespace');
         setElementVisibility(isSwarm, 'swarmRemoveContainersFirst');
         setElementVisibility(isDCOS, 'dcosDockerCredentialsPath', 'dcosDockerCredenditalsPathShared');
     }

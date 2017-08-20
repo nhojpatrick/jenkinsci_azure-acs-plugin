@@ -37,20 +37,19 @@
             <f:checkbox/>
         </f:entry>
 
-        <f:entry title="${%kubernetesNamespace_title}" field="kubernetesNamespace">
-            <f:textbox default="${descriptor.getDefaultKubernetesNamespace()}" clazz="kubernetes-optional"/>
-        </f:entry>
-
         <f:entry title="${%swarmRemoveContainersFirst_title}" field="swarmRemoveContainersFirst">
             <f:checkbox default="false"/>
         </f:entry>
 
         <f:validateButton title="${%Verify_Configuration}" progress="${%Verifying}" method="verifyConfiguration"
-                          with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId,kubernetesNamespace"/>
+                          with="azureCredentialsId,resourceGroupName,containerService,sshCredentialsId"/>
 
     </f:section>
 
     <f:advanced title="${%containerRegistryCredentialsSection_title}">
+        <f:entry title="${%secretNamespace_title}" field="secretNamespace">
+            <f:textbox default="${descriptor.getDefaultSecretNamespace()}" clazz="kubernetes-optional"/>
+        </f:entry>
         <f:entry title="${%secretName_title}" field="secretName">
             <f:textbox/>
         </f:entry>

@@ -57,7 +57,7 @@ public class KubernetesDeploymentCommand
         final EnvVars envVars = context.getEnvVars();
 
         SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        String kubernetesNamespaceCfg = Util.replaceMacro(context.getKubernetesNamespace(), envVars).trim();
+        String kubernetesNamespaceCfg = Util.replaceMacro(context.getSecretNamespace(), envVars).trim();
         DeploymentConfig deploymentConfig = context.getDeploymentConfig();
         FilePath[] configFiles = deploymentConfig.getConfigFiles();
 
@@ -152,7 +152,7 @@ public class KubernetesDeploymentCommand
 
         SSHUserPrivateKey getSshCredentials();
 
-        String getKubernetesNamespace();
+        String getSecretNamespace();
 
         DeploymentConfig getDeploymentConfig();
 

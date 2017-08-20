@@ -89,9 +89,9 @@ public class ACSDeploymentContext extends BaseCommandContext
     private String runOn;
 
     private boolean enableConfigSubstitution;
-    private String kubernetesNamespace;
     private boolean swarmRemoveContainersFirst;
 
+    private String secretNamespace;
     private String secretName;
     private String dcosDockerCredentialsPath;
     private boolean dcosDockerCredenditalsPathShared;
@@ -279,16 +279,20 @@ public class ACSDeploymentContext extends BaseCommandContext
     }
 
     @Override
-    public String getKubernetesNamespace() {
-        if (StringUtils.isBlank(kubernetesNamespace)) {
-            return getDescriptor().getDefaultKubernetesNamespace();
+    public String getSecretNamespace() {
+        if (StringUtils.isBlank(secretNamespace)) {
+            return getDescriptor().getDefaultSecretNamespace();
         }
-        return kubernetesNamespace;
+        return secretNamespace;
     }
 
     @DataBoundSetter
-    public void setKubernetesNamespace(String kubernetesNamespace) {
-        this.kubernetesNamespace = StringUtils.trimToEmpty(kubernetesNamespace);
+    public void setSecretNamespace(String secretNamespace) {
+        if (getDescriptor().getDefaultSecretNamespace().equals(secretNamespace)) {
+            this.secretNamespace = null;
+        } else {
+            this.secretNamespace = StringUtils.trimToEmpty(secretNamespace);
+        }
     }
 
     @Override
@@ -394,7 +398,7 @@ public class ACSDeploymentContext extends BaseCommandContext
         super.configure(jobContext, commandService);
 
         // Build DeploymentConfig
-        final EnvVars envVars = jobContext.envVars();
+        final EnvVars envVars = getEnvVars();
         final String expandedConfigFilePaths = envVars.expand(getConfigFilePaths());
         final FilePath[] configFiles = jobContext.getWorkspace().list(expandedConfigFilePaths);
         if (configFiles.length == 0) {
@@ -473,14 +477,12 @@ public class ACSDeploymentContext extends BaseCommandContext
             String azureCredentialsId,
             String resourceGroup,
             String containerService,
-            String sshCredentialsId,
-            String kubernetesNamespace) {
+            String sshCredentialsId) {
         return validate(
                 azureCredentialsId,
                 resourceGroup,
                 containerService,
                 sshCredentialsId,
-                kubernetesNamespace,
                 CredentailsFinder.DEFAULT);
     }
 
@@ -490,7 +492,6 @@ public class ACSDeploymentContext extends BaseCommandContext
             String resourceGroup,
             String containerService,
             String sshCredentialsId,
-            String kubernetesNamespace,
             CredentailsFinder credentailsFinder) {
         AzureCredentials.ServicePrincipal servicePrincipal =
                 credentailsFinder.getServicePrincipal(azureCredentialsId);
@@ -516,11 +517,6 @@ public class ACSDeploymentContext extends BaseCommandContext
             if (!Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
                 return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorTypeName);
             }
-
-            if (ContainerServiceOchestratorTypes.KUBERNETES == orchestratorType
-                    && StringUtils.isBlank(kubernetesNamespace)) {
-                return Messages.ACSDeploymentContext_missingKubernetesNamespace();
-            }
         } catch (IllegalArgumentException e) {
             return e.getMessage();
         }
@@ -539,14 +535,12 @@ public class ACSDeploymentContext extends BaseCommandContext
         public FormValidation doVerifyConfiguration(@QueryParameter String azureCredentialsId,
                                                     @QueryParameter String resourceGroupName,
                                                     @QueryParameter String containerService,
-                                                    @QueryParameter String sshCredentialsId,
-                                                    @QueryParameter String kubernetesNamespace) {
+                                                    @QueryParameter String sshCredentialsId) {
             String validateResult = validate(
                     azureCredentialsId,
                     resourceGroupName,
                     containerService,
-                    sshCredentialsId,
-                    kubernetesNamespace);
+                    sshCredentialsId);
             if (validateResult != null) {
                 return FormValidation.error(validateResult);
             }
@@ -771,7 +765,7 @@ public class ACSDeploymentContext extends BaseCommandContext
             return FormValidation.ok();
         }
 
-        public String getDefaultKubernetesNamespace() {
+        public String getDefaultSecretNamespace() {
             return "default";
         }
 

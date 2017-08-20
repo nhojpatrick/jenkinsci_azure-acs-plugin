@@ -187,7 +187,6 @@ public class KubernetesDeploymentCommandTest {
             doReturn(mock(PrintStream.class)).when(jobContext).logger();
             envVars = new EnvVars();
             doReturn(jobContext).when(context).getJobContext();
-            doReturn(envVars).when(jobContext).envVars();
             doReturn(envVars).when(context).getEnvVars();
             run = mock(Run.class);
             //noinspection ResultOfMethodCallIgnored
@@ -200,7 +199,7 @@ public class KubernetesDeploymentCommandTest {
             doReturn(sshCredentials).when(context).getSshCredentials();
             doReturn(FQDN).when(context).getMgmtFQDN();
 
-            doReturn(NAMESPACE).when(context).getKubernetesNamespace();
+            doReturn(NAMESPACE).when(context).getSecretNamespace();
             deploymentConfig = mock(DeploymentConfig.class);
             doReturn(deploymentConfig).when(context).getDeploymentConfig();
             configFile = mock(FilePath.class);
@@ -243,7 +242,7 @@ public class KubernetesDeploymentCommandTest {
         }
 
         ContextBuilder withNamespace(String ns) {
-            doReturn(ns).when(context).getKubernetesNamespace();
+            doReturn(ns).when(context).getSecretNamespace();
             return this;
         }
 
