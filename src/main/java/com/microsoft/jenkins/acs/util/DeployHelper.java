@@ -1,9 +1,16 @@
 package com.microsoft.jenkins.acs.util;
 
+import com.microsoft.jenkins.azurecommons.Constants;
+import com.microsoft.jenkins.azurecommons.Messages;
+import hudson.EnvVars;
 import hudson.Util;
 import hudson.util.VariableResolver;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Calendar;
@@ -96,5 +103,22 @@ public final class DeployHelper {
         // https://github.com/apache/mesos/blob/1.3.x/src/slave/containerizer/fetcher.cpp#L219
         // URI escaped characters will not be unescaped before returning the local path for the file:// URI.
         return path.equals(encodeURIPath(path));
+    }
+
+    public static ByteArrayInputStream replaceMacro(
+            InputStream original, EnvVars envVars, boolean enabled) throws IOException {
+        try {
+            String content = IOUtils.toString(original, com.microsoft.jenkins.azurecommons.Constants.UTF8);
+            if (enabled) {
+                content = Util.replaceMacro(content, envVars);
+            }
+            if (content != null) {
+                return new ByteArrayInputStream(content.getBytes(Constants.UTF8));
+            } else {
+                throw new IllegalArgumentException(Messages.JobContext_nullContent());
+            }
+        } finally {
+            original.close();
+        }
     }
 }

@@ -78,13 +78,15 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             try (SSHClient connected = client.connect()) {
                 copyCredentialsToAgents(context, jobContext, connected);
 
+                EnvVars envVars = context.getEnvVars();
+
                 for (FilePath configPath : configPaths) {
                     String deployedFilename = externalUtils.buildRemoteDeployConfigName();
                     context.logStatus(Messages.MarathonDeploymentCommand_copyConfigFileTo(
                             configPath.toURI(), connected.getHost(), deployedFilename));
 
-                    ByteArrayInputStream in = jobContext.replaceMacro(
-                            configPath.read(), context.isEnableConfigSubstitution());
+                    ByteArrayInputStream in = externalUtils.replaceMacro(
+                            configPath.read(), envVars, context.isEnableConfigSubstitution());
 
                     connected.copyTo(in, deployedFilename);
                     in.reset();
@@ -121,7 +123,7 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             JobContext jobContext,
             SSHClient client
     ) throws Exception {
-        final EnvVars envVars = jobContext.envVars();
+        final EnvVars envVars = context.getEnvVars();
         final List<DockerRegistryEndpoint> containerRegistryCredentials = context.getContainerRegistryCredentials();
         final String linuxAdminUsername = context.getLinuxAdminUsername();
 
@@ -260,6 +262,8 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
 
         String getMarathonAppId(InputStream in) throws IOException;
 
+        ByteArrayInputStream replaceMacro(InputStream original, EnvVars envVars, boolean enabled) throws IOException;
+
         ExternalUtils DEFAULT = new ExternalUtils() {
             @Override
             public SSHClient buildSSHClient(
@@ -287,6 +291,12 @@ public class MarathonDeploymentCommand implements ICommand<MarathonDeploymentCom
             @Override
             public String getMarathonAppId(InputStream in) throws IOException {
                 return JsonHelper.getMarathonAppId(in);
+            }
+
+            @Override
+            public ByteArrayInputStream replaceMacro(
+                    InputStream original, EnvVars envVars, boolean enabled) throws IOException {
+                return DeployHelper.replaceMacro(original, envVars, enabled);
             }
         };
     }

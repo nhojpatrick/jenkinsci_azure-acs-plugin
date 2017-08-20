@@ -12,6 +12,7 @@ import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.model.Item;
 import org.apache.commons.codec.binary.Base64;
@@ -19,7 +20,9 @@ import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import static com.microsoft.jenkins.acs.util.DeployHelper.escapeSingleQuote;
@@ -54,6 +57,8 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
             try (SSHClient connected = client.connect()) {
                 prepareCredendtialsOnAgents(context, jobContext, connected);
 
+                EnvVars envVars = context.getEnvVars();
+
                 final FilePath[] configFiles = config.getConfigFiles();
                 for (FilePath configFile : configFiles) {
                     final String deployedFilename = externalUtils.buildRemoteDeployConfigName();
@@ -61,7 +66,8 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
                             configFile.getRemote(), connected.getHost(), deployedFilename));
 
                     connected.copyTo(
-                            jobContext.replaceMacro(configFile.read(), context.isEnableConfigSubstitution()),
+                            externalUtils.replaceMacro(
+                                    configFile.read(), envVars, context.isEnableConfigSubstitution()),
                             deployedFilename);
 
                     final String escapedName = escapeSingleQuote(deployedFilename);
@@ -143,6 +149,8 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
 
         String buildRemoteDeployConfigName();
 
+        ByteArrayInputStream replaceMacro(InputStream original, EnvVars envVars, boolean enabled) throws IOException;
+
         ExternalUtils DEFAULT = new ExternalUtils() {
             @Override
             public SSHClient buildSSHClient(String host, int port, SSHUserPrivateKey credentials) throws JSchException {
@@ -152,6 +160,12 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
             @Override
             public String buildRemoteDeployConfigName() {
                 return DeployHelper.generateRandomDeploymentFileName("yml");
+            }
+
+            @Override
+            public ByteArrayInputStream replaceMacro(
+                    InputStream original, EnvVars envVars, boolean enabled) throws IOException {
+                return DeployHelper.replaceMacro(original, envVars, enabled);
             }
         };
     }

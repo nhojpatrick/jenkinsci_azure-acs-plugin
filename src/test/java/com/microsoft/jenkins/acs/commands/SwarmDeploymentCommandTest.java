@@ -14,6 +14,7 @@ import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.azurecommons.JobContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.model.Item;
 import hudson.model.Job;
@@ -160,6 +161,7 @@ public class SwarmDeploymentCommandTest {
             doAnswer(answer).when(context).logError(any(String.class));
             doAnswer(answer).when(context).logError(any(Exception.class));
             doAnswer(answer).when(context).logError(any(String.class), any(Exception.class));
+            doReturn(mock(EnvVars.class)).when(context).getEnvVars();
 
             doReturn(FQDN).when(context).getMgmtFQDN();
             sshCredentials = mock(SSHUserPrivateKey.class);
@@ -205,7 +207,7 @@ public class SwarmDeploymentCommandTest {
             doReturn(configFiles).when(deploymentConfig).getConfigFiles();
             remoteDeployFileName = REMOTE_APP_CONFIG_NAME;
             configFileStream = mock(ByteArrayInputStream.class);
-            doReturn(configFileStream).when(jobContext).replaceMacro(any(InputStream.class), any(Boolean.TYPE));
+            doReturn(configFileStream).when(externalUtils).replaceMacro(any(InputStream.class), any(EnvVars.class), any(Boolean.TYPE));
 
             swarmRemoveContainersFirst = true;
             doReturn(swarmRemoveContainersFirst).when(context).isSwarmRemoveContainersFirst();
