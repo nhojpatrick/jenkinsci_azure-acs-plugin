@@ -65,9 +65,9 @@ It provides the following main functionality:
    corresponding value if they exists in the environment variables.
 1. If the configurations needs to pull images from private repository, click the "Docker Container Registry
    Credentials..." button and add them one by one.
-   * For Kubernetes, you can enter the secret name. The credentials you provided will be consolidated into
-      a Secret resource in your Kubernetes cluster with the name you provided. You can use that secret in your
-      Kubernetes configuration.
+   * For Kubernetes, you can enter the secret name and the namespace where the secret will be created based on the
+      credentials configured. The credentials you provided will be consolidated into a Secret resource in your 
+      Kubernetes cluster with the name you provided. You can use that secret in your Kubernetes configuration.
       
       You can use variables in the secret name (e.g., `$BUILD_NUMBER`), to generate a secret specific to a build.
       The name will be exposed as environment variable `KUBERNETES_SECRET_NAME` and you can use that in your
@@ -145,6 +145,31 @@ It provides the following main functionality:
    result of the configuration quality. You need to run a sample build to verify it works as some of the
    contents has to be loaded at build time.
 
+## Pipeline Support
 
+To use the plugin in pipeline, go to the **Pipeline Syntax** page when you configure the pipeline job, and choose
+**acsDeploy: Deploy to Azure Container Service** from the **Sample Step** dropdown. You can configure it and click 
+**Generate Pipeline Script** which will give you
 
- 
+```groovy
+acsDeploy(azureCredentialsId: '<azure-credential-id>',
+          resourceGroupName: '<resource-group-name>',
+          containerService: '<acs-name> | <acs-type>',
+          sshCredentialsId: '<ssh-credentials-id>',
+          configFilePaths: '<configuration-file-paths>',
+          enableConfigSubstitution: true,
+          
+          // Kubernetes
+          secretName: '<secret-name>',
+          secretNamespace: '<secret-namespace>',
+          
+          // Docker Swarm
+          swarmRemoveContainersFirst: true,
+          
+          // DC/OS Marathon
+          dcosDockerCredentialsPath: '<dcos-credentials-path>',
+          
+          containerRegistryCredentials: [
+              [credentialsId: '<credentials-id>', url: '<docker-registry-url>']
+          ])
+```
