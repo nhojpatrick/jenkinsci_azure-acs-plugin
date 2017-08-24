@@ -8,6 +8,7 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.network.LoadBalancer;
 import com.microsoft.azure.management.network.LoadBalancerBackend;
 import com.microsoft.azure.management.network.LoadBalancerFrontend;
@@ -17,22 +18,32 @@ import com.microsoft.azure.management.network.NetworkSecurityGroup;
 import com.microsoft.azure.management.network.NetworkSecurityRule;
 import com.microsoft.azure.management.network.SecurityRuleAccess;
 import com.microsoft.azure.management.network.SecurityRuleDirection;
+import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
+import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.azurecommons.JobContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
+import hudson.EnvVars;
+import hudson.FilePath;
+import hudson.model.TaskListener;
+import jenkins.security.MasterToSlaveCallable;
 
 import java.io.IOException;
+import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData> {
+public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePortCommandData>, Serializable {
+    private static final long serialVersionUID = 1L;
 
     public static final int LOAD_BALANCER_IDLE_TIMEOUT_IN_MINUTES = 5;
 
@@ -44,35 +55,49 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
     @Override
     public void execute(IEnablePortCommandData context) {
-        Azure azureClient = context.getAzureClient();
-        String resourceGroupName = context.getResourceGroupName();
+        JobContext jobContext = context.getJobContext();
+        final FilePath workspace = jobContext.getWorkspace();
+        final TaskListener taskListener = jobContext.getTaskListener();
+        final EnvVars envVars = context.getEnvVars();
+        final DeploymentConfig.Factory configFactory = new DeploymentConfig.Factory(context.getConfigFilePaths());
+        final ContainerServiceOchestratorTypes orchestratorType = context.getOrchestratorType();
+        String azureCredentialsId = context.getAzureCredentialsId();
+        final AzureCredentials.ServicePrincipal servicePrincipal =
+                AzureCredentials.getServicePrincipal(azureCredentialsId);
+        final String resourceGroupName = context.getResourceGroupName();
+
         try {
-            final DeploymentConfig config = context.getDeploymentConfig();
-            if (config == null) {
-                context.logError(Messages.DeploymentConfig_invalidConfig());
-                return;
+            CommandState state = workspace.act(new MasterToSlaveCallable<CommandState, Exception>() {
+                @Override
+                public CommandState call() throws Exception {
+                    PrintStream logger = taskListener.getLogger();
+
+                    Azure azureClient = AzureHelper.buildClientFromServicePrincipal(servicePrincipal);
+
+                    DeploymentConfig config = configFactory.build(orchestratorType, workspace, envVars);
+
+                    final String resourcePrefix = config.getResourcePrefix();
+                    final List<ServicePort> servicePorts = config.getServicePorts();
+
+                    createSecurityRules(azureClient, resourceGroupName, resourcePrefix, servicePorts, logger);
+
+                    createLoadBalancerRules(azureClient, resourceGroupName, resourcePrefix, servicePorts, logger);
+                    return CommandState.Success;
+                }
+            });
+            context.setCommandState(state);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
             }
-
-            final String resourcePrefix = config.getResourcePrefix();
-            final List<ServicePort> servicePorts = config.getServicePorts();
-
-            createSecurityRules(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
-
-            createLoadBalancerRules(context, azureClient, resourceGroupName, resourcePrefix, servicePorts);
-
-            context.setCommandState(CommandState.Success);
-        } catch (IOException | InvalidConfigException | DeploymentConfig.InvalidFormatException e) {
-            context.logError(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
             context.logError(e);
         }
     }
 
     static int filterPortsToOpen(
-            IBaseCommandData context,
             Collection<NetworkSecurityRule> rules,
-            Set<Integer> portsToOpen) throws InvalidConfigException {
+            Set<Integer> portsToOpen,
+            PrintStream logger) throws InvalidConfigException {
         int maxPriority = Integer.MIN_VALUE;
         for (NetworkSecurityRule rule : rules) {
             final int priority = rule.priority();
@@ -97,7 +122,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             final String ruleDestPortRange = rule.destinationPortRange();
             if (ruleDestPortRange.equals("*")) {
                 // Already allow all
-                context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowAll(
+                logger.println(Messages.EnablePortCommand_securityRuleAlreadyAllowAll(
                         rule.name(), ruleDestPortRange));
 
                 // No ports need to open
@@ -122,7 +147,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                     final int port = it.next();
                     if (port >= portStart && port <= portEnd) {
                         // Port already allowed
-                        context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
+                        logger.println(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
                                 rule.name(), ruleDestPortRange, String.valueOf(port)));
                         it.remove();
                     }
@@ -131,7 +156,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
                 // Single
                 final int port = Integer.valueOf(ruleDestPortRange);
                 if (portsToOpen.remove(port)) {
-                    context.logStatus(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
+                    logger.println(Messages.EnablePortCommand_securityRuleAlreadyAllowSingle(
                             rule.name(), ruleDestPortRange, String.valueOf(port)));
                 }
             }
@@ -141,11 +166,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     static void createSecurityRules(
-            IBaseCommandData context,
             Azure azureClient,
             String resourceGroupName,
             String resourcePrefix,
-            List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
+            List<ServicePort> servicePorts,
+            PrintStream logger) throws IOException, InvalidConfigException {
 
         if (servicePorts.isEmpty()) {
             return;
@@ -170,16 +195,16 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
         if (nsgPublicAgent == null) {
             // Do nothing if security group not found
-            context.logStatus(Messages.EnablePortCommand_securityGroupNotFound());
+            logger.println(Messages.EnablePortCommand_securityGroupNotFound());
             return;
         }
 
-        int maxPriority = filterPortsToOpen(context, nsgPublicAgent.securityRules().values(), portsToOpen);
+        int maxPriority = filterPortsToOpen(nsgPublicAgent.securityRules().values(), portsToOpen, logger);
 
         // Create security rules for ports not opened
         final NetworkSecurityGroup.Update update = nsgPublicAgent.update();
         for (int port : portsToOpen) {
-            context.logStatus(Messages.EnablePortCommand_securityRuleNotFound(String.valueOf(port)));
+            logger.println(Messages.EnablePortCommand_securityRuleNotFound(String.valueOf(port)));
 
             maxPriority = maxPriority + Constants.PRIORITY_STEP;
             if (maxPriority > Constants.LOWEST_PRIORITY) {
@@ -187,7 +212,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             }
 
             final String ruleName = "Allow_" + port;
-            context.logStatus(Messages.EnablePortCommand_creatingRule(String.valueOf(port), ruleName));
+            logger.println(Messages.EnablePortCommand_creatingRule(String.valueOf(port), ruleName));
 
             update.defineRule(ruleName)
                     .allowInbound()
@@ -205,11 +230,11 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
     }
 
     static void createLoadBalancerRules(
-            IBaseCommandData context,
             Azure azureClient,
             String resourceGroupName,
             String resourcePrefix,
-            List<ServicePort> servicePorts) throws IOException, InvalidConfigException {
+            List<ServicePort> servicePorts,
+            PrintStream logger) throws IOException, InvalidConfigException {
 
         if (servicePorts.isEmpty()) {
             return;
@@ -232,7 +257,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
         if (loadBalancer == null) {
             // Do nothing if load balancer not found
-            context.logStatus(Messages.EnablePortCommand_lbNotFound());
+            logger.println(Messages.EnablePortCommand_lbNotFound());
             return;
         }
 
@@ -244,7 +269,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
             boolean ruleFound = false;
             for (LoadBalancingRule rule : loadBalancer.loadBalancingRules().values()) {
                 if (servicePort.matchesLoadBalancingRule(rule)) {
-                    context.logStatus(Messages.EnablePortCommand_lbFound(
+                    logger.println(Messages.EnablePortCommand_lbFound(
                             String.valueOf(servicePort.getHostPort()), servicePort.getProtocol()));
                     ruleFound = true;
                     break;
@@ -253,7 +278,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
 
             if (!ruleFound) {
                 final String ruleName = "JLBRule" + servicePort.getProtocol().toString() + servicePort.getHostPort();
-                context.logStatus(Messages.EnablePortCommand_creatingLB(
+                logger.println(Messages.EnablePortCommand_creatingLB(
                         String.valueOf(servicePort.getHostPort()), ruleName));
 
                 // Unfortunately there is no probe type of UDP, but it's mandatory. So always use TCP probe.
@@ -280,11 +305,17 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         update.apply();
     }
 
+    private static class TaskResult implements Serializable {
+        private CommandState commandState = CommandState.HasError;
+    }
+
     public interface IEnablePortCommandData extends IBaseCommandData {
-        Azure getAzureClient();
+        String getAzureCredentialsId();
+
+        String getConfigFilePaths();
 
         String getResourceGroupName();
 
-        DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
+        ContainerServiceOchestratorTypes getOrchestratorType();
     }
 }

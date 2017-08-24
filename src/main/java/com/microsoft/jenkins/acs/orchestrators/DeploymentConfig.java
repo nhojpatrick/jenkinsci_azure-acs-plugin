@@ -1,11 +1,15 @@
 package com.microsoft.jenkins.acs.orchestrators;
 
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.Messages;
+import hudson.EnvVars;
 import hudson.FilePath;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
 
-public abstract class DeploymentConfig {
+public abstract class DeploymentConfig implements Serializable {
 
     private final FilePath[] configFiles;
 
@@ -32,5 +36,37 @@ public abstract class DeploymentConfig {
             super(ex);
         }
 
+    }
+
+    public static class Factory implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private final String configFilePaths;
+
+        public Factory(String configFilePaths) {
+            this.configFilePaths = configFilePaths;
+        }
+
+        public DeploymentConfig build(ContainerServiceOchestratorTypes type,
+                                      FilePath workspace,
+                                      EnvVars envVars) throws IOException, InterruptedException {
+            final String expandedConfigFilePaths = envVars.expand(configFilePaths);
+            final FilePath[] configFiles = workspace.list(expandedConfigFilePaths);
+            if (configFiles.length == 0) {
+                throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(configFilePaths));
+            }
+
+            switch (type) {
+                case DCOS:
+                    return new MarathonDeploymentConfig(configFiles);
+                case KUBERNETES:
+                    return new KubernetesDeploymentConfig(configFiles);
+                case SWARM:
+                    return new SwarmDeploymentConfig(configFiles);
+                default:
+                    throw new IllegalArgumentException(
+                            Messages.ACSDeploymentContext_orchestratorNotSupported(type));
+            }
+        }
     }
 }

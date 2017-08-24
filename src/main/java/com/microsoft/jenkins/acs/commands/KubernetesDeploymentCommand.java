@@ -7,11 +7,8 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.annotations.VisibleForTesting;
-import com.jcraft.jsch.JSchException;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -22,129 +19,150 @@ import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
 import com.microsoft.jenkins.kubernetes.KubernetesClientWrapper;
+import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Util;
+import hudson.model.Item;
+import hudson.model.TaskListener;
 import hudson.util.VariableResolver;
-import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import jenkins.security.MasterToSlaveCallable;
 
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.Serializable;
+import java.net.URL;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Command to deploy Kubernetes configurations to Azure Container Service.
  */
 public class KubernetesDeploymentCommand
-        implements ICommand<KubernetesDeploymentCommand.IKubernetesDeploymentCommandData> {
-
-    private final ExternalUtils externalUtils;
-
-    public KubernetesDeploymentCommand() {
-        this(ExternalUtils.DEFAULT);
-    }
-
-    @VisibleForTesting
-    KubernetesDeploymentCommand(ExternalUtils externalUtils) {
-        this.externalUtils = externalUtils;
-    }
+        implements ICommand<KubernetesDeploymentCommand.IKubernetesDeploymentCommandData>, Serializable {
+    private static final long serialVersionUID = 1L;
 
     @Override
-    public void execute(final IKubernetesDeploymentCommandData context) {
-        final JobContext jobContext = context.getJobContext();
+    public void execute(IKubernetesDeploymentCommandData context) {
+        JobContext jobContext = context.getJobContext();
+        final FilePath workspace = jobContext.getWorkspace();
+        final TaskListener taskListener = jobContext.getTaskListener();
         final EnvVars envVars = context.getEnvVars();
+        final String managementFqdn = context.getMgmtFQDN();
+        final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
+        final String secretNameCfg = context.getSecretName();
+        final String defaultSecretName = jobContext.getRun().getDisplayName();
+        final String kubernetesNamespaceCfg = Util.replaceMacro(context.getSecretNamespace(), envVars).trim();
+        final boolean enableSubstitution = context.isEnableConfigSubstitution();
+        final DeploymentConfig.Factory configFactory = new DeploymentConfig.Factory(context.getConfigFilePaths());
+        final ContainerServiceOchestratorTypes orchestratorType = context.getOrchestratorType();
 
-        SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        String kubernetesNamespaceCfg = Util.replaceMacro(context.getSecretNamespace(), envVars).trim();
-        DeploymentConfig deploymentConfig = context.getDeploymentConfig();
-        FilePath[] configFiles = deploymentConfig.getConfigFiles();
-
-        FilePath kubeconfigFile = null;
         try {
-            SSHClient sshClient = externalUtils
-                    .buildSSHClient(context.getMgmtFQDN(), Constants.KUBERNETES_SSH_PORT, sshCredentials)
-                    .withLogger(jobContext.logger());
-            kubeconfigFile = jobContext.getWorkspace().createTempFile(Constants.KUBECONFIG_PREFIX, "");
-            try (SSHClient connected = sshClient.connect();
-                 OutputStream out = kubeconfigFile.write()) {
-                connected.copyFrom(Constants.KUBECONFIG_FILE, out);
-            }
+            final List<ResolvedDockerRegistryEndpoint> registryCredentials =
+                    context.resolvedDockerRegistryEndpoints(jobContext.getRun().getParent());
 
-            KubernetesClientWrapper clientWrapper =
-                    externalUtils.buildKubernetesClientWrapper(kubeconfigFile.getRemote())
-                            .withLogger(jobContext.logger());
+            TaskResult taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, Exception>() {
+                @Override
+                public TaskResult call() throws Exception {
+                    TaskResult result = new TaskResult();
+                    PrintStream logger = taskListener.getLogger();
 
-            final List<DockerRegistryEndpoint> registryCredentials = context.getContainerRegistryCredentials();
-            if (!registryCredentials.isEmpty()) {
-                final String secretName = KubernetesClientWrapper.prepareSecretName(
-                        context.getSecretName(), jobContext.getRun().getDisplayName(), envVars);
+                    DeploymentConfig deploymentConfig = configFactory.build(orchestratorType, workspace, envVars);
+                    FilePath[] configFiles = deploymentConfig.getConfigFiles();
 
-                clientWrapper.createOrReplaceSecrets(
-                        jobContext.getRun().getParent(),
-                        kubernetesNamespaceCfg,
-                        secretName,
-                        registryCredentials);
+                    SSHClient sshClient = new SSHClient(managementFqdn, Constants.KUBERNETES_SSH_PORT, sshCredentials)
+                            .withLogger(logger);
+                    FilePath kubeconfigFile = workspace.createTempFile(Constants.KUBECONFIG_PREFIX, "");
+                    try {
+                        try (SSHClient connected = sshClient.connect();
+                             OutputStream out = kubeconfigFile.write()) {
+                            connected.copyFrom(Constants.KUBECONFIG_FILE, out);
+                        }
 
-                context.logStatus(Messages.KubernetesDeploymentCommand_injectSecretName(
-                        Constants.KUBERNETES_SECRET_NAME_PROP, secretName));
-                EnvironmentInjector.inject(
-                        jobContext.getRun(), envVars, Constants.KUBERNETES_SECRET_NAME_PROP, secretName);
-            }
+                        KubernetesClientWrapper clientWrapper =
+                                new KubernetesClientWrapper(kubeconfigFile.getRemote())
+                                        .withLogger(logger);
+                        result.masterHost = getMasterHost(clientWrapper);
 
-            if (context.isEnableConfigSubstitution()) {
-                clientWrapper.withVariableResolver(new VariableResolver.ByMap<>(envVars));
-            }
 
-            clientWrapper.apply(configFiles);
+                        if (!registryCredentials.isEmpty()) {
+                            final String secretName = KubernetesClientWrapper.prepareSecretName(
+                                    secretNameCfg, defaultSecretName, envVars);
 
-            context.setCommandState(CommandState.Success);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            context.logError(e);
-        } catch (Exception e) {
-            context.logError(e);
-        } finally {
-            if (kubeconfigFile != null) {
-                context.logStatus(
-                        Messages.KubernetesDeploymentCommand_deleteConfigFile(kubeconfigFile.getRemote()));
-                try {
-                    if (!kubeconfigFile.delete()) {
-                        context.logStatus(
-                                Messages.KubernetesDeploymentCommand_failedToDeleteFile(kubeconfigFile.getRemote()));
+                            clientWrapper.createOrReplaceSecrets(
+                                    kubernetesNamespaceCfg, secretName, registryCredentials);
+
+                            logger.println(Messages.KubernetesDeploymentCommand_injectSecretName(
+                                    Constants.KUBERNETES_SECRET_NAME_PROP, secretName));
+                            envVars.put(Constants.KUBERNETES_SECRET_NAME_PROP, secretName);
+                            result.extraEnvVars.put(Constants.KUBERNETES_SECRET_NAME_PROP, secretName);
+                        }
+
+                        if (enableSubstitution) {
+                            clientWrapper.withVariableResolver(new VariableResolver.ByMap<>(envVars));
+                        }
+
+                        clientWrapper.apply(configFiles);
+                        result.commandState = CommandState.Success;
+
+                        return result;
+                    } finally {
+                        logger.println(
+                                Messages.KubernetesDeploymentCommand_deleteConfigFile(kubeconfigFile.getRemote()));
+                        try {
+                            if (!kubeconfigFile.delete()) {
+                                logger.println(Messages.KubernetesDeploymentCommand_failedToDeleteFile(
+                                        kubeconfigFile.getRemote()));
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            logger.println(
+                                    Messages.KubernetesDeploymentCommand_failedToDeleteFile(e.getMessage()));
+                        } catch (Exception e) {
+                            logger.println(
+                                    Messages.KubernetesDeploymentCommand_failedToDeleteFile(e.getMessage()));
+                        }
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    context.logStatus(
-                            Messages.KubernetesDeploymentCommand_failedToDeleteFile(e.getMessage()));
-                } catch (Exception e) {
-                    context.logStatus(
-                            Messages.KubernetesDeploymentCommand_failedToDeleteFile(e.getMessage()));
                 }
+            });
+
+            for (Map.Entry<String, String> entry : taskResult.extraEnvVars.entrySet()) {
+                EnvironmentInjector.inject(jobContext.getRun(), envVars, entry.getKey(), entry.getValue());
             }
+
+            context.setCommandState(taskResult.commandState);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            context.logError(e);
         }
     }
 
     @VisibleForTesting
-    interface ExternalUtils {
-        SSHClient buildSSHClient(String host,
-                                 int port,
-                                 SSHUserPrivateKey credentials) throws JSchException;
+    String getMasterHost(KubernetesClientWrapper wrapper) {
+        final String unknown = "Unknown";
+        if (wrapper == null) {
+            return unknown;
+        }
+        KubernetesClient client = wrapper.getClient();
+        if (client == null) {
+            return unknown;
+        }
+        URL masterURL = client.getMasterUrl();
+        if (masterURL == null) {
+            return unknown;
+        }
+        return masterURL.getHost();
+    }
 
-        KubernetesClientWrapper buildKubernetesClientWrapper(String kubeconfigFilePath);
-
-        ExternalUtils DEFAULT = new ExternalUtils() {
-            @Override
-            public SSHClient buildSSHClient(String host, int port, SSHUserPrivateKey credentials) throws JSchException {
-                return new SSHClient(host, port, credentials);
-            }
-
-            @Override
-            public KubernetesClientWrapper buildKubernetesClientWrapper(String kubeconfigFilePath) {
-                return new KubernetesClientWrapper(kubeconfigFilePath);
-            }
-        };
+    private static class TaskResult implements Serializable {
+        private CommandState commandState = CommandState.Unknown;
+        private Map<String, String> extraEnvVars = new HashMap<>();
+        private String masterHost;
     }
 
     public interface IKubernetesDeploymentCommandData extends IBaseCommandData {
@@ -154,12 +172,14 @@ public class KubernetesDeploymentCommand
 
         String getSecretNamespace();
 
-        DeploymentConfig getDeploymentConfig();
+        String getConfigFilePaths();
+
+        ContainerServiceOchestratorTypes getOrchestratorType();
 
         boolean isEnableConfigSubstitution();
 
         String getSecretName();
 
-        List<DockerRegistryEndpoint> getContainerRegistryCredentials();
+        List<ResolvedDockerRegistryEndpoint> resolvedDockerRegistryEndpoints(Item context) throws IOException;
     }
 }
