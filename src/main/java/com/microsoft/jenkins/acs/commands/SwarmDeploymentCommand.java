@@ -1,6 +1,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
@@ -61,7 +62,7 @@ public class SwarmDeploymentCommand
                             .withLogger(logger);
 
                     try (SSHClient connected = client.connect()) {
-                        prepareCredendtialsOnAgents(connected, registryCredentials, logger);
+                        prepareCredentialsForSwarm(connected, registryCredentials, logger);
 
                         for (FilePath configFile : configFiles) {
                             final String deployedFilename = DeployHelper.generateRandomDeploymentFileName("yml");
@@ -112,7 +113,8 @@ public class SwarmDeploymentCommand
         }
     }
 
-    private void prepareCredendtialsOnAgents(
+    @VisibleForTesting
+    static void prepareCredentialsForSwarm(
             SSHClient client,
             List<ResolvedDockerRegistryEndpoint> registryCredentials,
             PrintStream logger) throws Exception {

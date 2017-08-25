@@ -6,6 +6,7 @@
 
 package com.microsoft.jenkins.acs.commands;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
@@ -45,44 +46,10 @@ public class GetContainerServiceInfoCommand
             TaskResult taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, RuntimeException>() {
                 @Override
                 public TaskResult call() throws RuntimeException {
-                    TaskResult result = new TaskResult();
                     PrintStream logger = taskListener.getLogger();
 
                     Azure azureClient = AzureHelper.buildClientFromServicePrincipal(servicePrincipal);
-                    ContainerService containerService =
-                            azureClient
-                                    .containerServices()
-                                    .getByResourceGroup(resourceGroupName, containerServiceName);
-                    if (containerService == null) {
-                        logger.println(
-                                Messages.GetContainserServiceInfoCommand_containerServiceNotFound(
-                                        containerServiceName, resourceGroupName));
-                        result.commandState = CommandState.HasError;
-                        return result;
-                    }
-
-                    ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
-                    logger.println(Messages.GetContainserServiceInfoCommand_orchestratorType(orchestratorType));
-                    result.orchestratorType = orchestratorType;
-
-                    if (configuredType == null || orchestratorType != configuredType) {
-                        logger.println(Messages.GetContainserServiceInfoCommand_orchestratorTypeNotMatch(
-                                containerServiceName, orchestratorType, configuredType));
-                        result.commandState = CommandState.HasError;
-                        return result;
-                    }
-
-                    final String fqdn = containerService.masterFqdn();
-                    logger.println(Messages.GetContainserServiceInfoCommand_fqdn(fqdn));
-                    result.fqdn = fqdn;
-
-                    final String adminUser = containerService.linuxRootUsername();
-                    logger.println(Messages.GetContainserServiceInfoCommand_adminUser(adminUser));
-                    result.adminUsername = adminUser;
-
-                    result.commandState = CommandState.Success;
-
-                    return result;
+                    return getAcsInfo(azureClient, resourceGroupName, containerServiceName, configuredType, logger);
                 }
             });
 
@@ -100,11 +67,75 @@ public class GetContainerServiceInfoCommand
         }
     }
 
-    public static class TaskResult implements Serializable {
+    @VisibleForTesting
+    TaskResult getAcsInfo(
+            Azure azureClient,
+            String resourceGroupName,
+            String containerServiceName,
+            ContainerServiceOchestratorTypes configuredType,
+            PrintStream logger) {
+        TaskResult result = new TaskResult();
+
+        ContainerService containerService =
+                azureClient
+                        .containerServices()
+                        .getByResourceGroup(resourceGroupName, containerServiceName);
+        if (containerService == null) {
+            logger.println(
+                    Messages.GetContainserServiceInfoCommand_containerServiceNotFound(
+                            containerServiceName, resourceGroupName));
+            result.commandState = CommandState.HasError;
+            return result;
+        }
+
+        ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
+        logger.println(Messages.GetContainserServiceInfoCommand_orchestratorType(orchestratorType));
+        result.orchestratorType = orchestratorType;
+
+        if (configuredType == null || orchestratorType != configuredType) {
+            logger.println(Messages.GetContainserServiceInfoCommand_orchestratorTypeNotMatch(
+                    containerServiceName, orchestratorType, configuredType));
+            result.commandState = CommandState.HasError;
+            return result;
+        }
+
+        final String fqdn = containerService.masterFqdn();
+        logger.println(Messages.GetContainserServiceInfoCommand_fqdn(fqdn));
+        result.fqdn = fqdn;
+
+        final String adminUser = containerService.linuxRootUsername();
+        logger.println(Messages.GetContainserServiceInfoCommand_adminUser(adminUser));
+        result.adminUsername = adminUser;
+
+        result.commandState = CommandState.Success;
+
+        return result;
+    }
+
+    @VisibleForTesting
+    static class TaskResult implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         private CommandState commandState = CommandState.Unknown;
         private ContainerServiceOchestratorTypes orchestratorType;
         private String fqdn;
         private String adminUsername;
+
+        public CommandState getCommandState() {
+            return commandState;
+        }
+
+        public ContainerServiceOchestratorTypes getOrchestratorType() {
+            return orchestratorType;
+        }
+
+        public String getFqdn() {
+            return fqdn;
+        }
+
+        public String getAdminUsername() {
+            return adminUsername;
+        }
     }
 
     public interface IGetContainerServiceInfoCommandData extends IBaseCommandData {

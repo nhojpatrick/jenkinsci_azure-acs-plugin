@@ -638,21 +638,7 @@ public class ACSDeploymentContext extends BaseCommandContext
         }
 
         public ListBoxModel doFillSshCredentialsIdItems(@AncestorInPath Item owner) {
-            List<SSHUserPrivateKey> credentials;
-            if (owner == null) {
-                credentials = CredentialsProvider.lookupCredentials(
-                        SSHUserPrivateKey.class,
-                        Jenkins.getInstance(),
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList());
-            } else {
-                credentials = CredentialsProvider.lookupCredentials(
-                        SSHUserPrivateKey.class,
-                        owner,
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList());
-            }
-            ListBoxModel m = new StandardListBoxModel().withAll(credentials);
+            ListBoxModel m = new StandardListBoxModel().includeAs(ACL.SYSTEM, owner, SSHUserPrivateKey.class);
             return m;
         }
 

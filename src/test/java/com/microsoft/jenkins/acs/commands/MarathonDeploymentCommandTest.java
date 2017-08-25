@@ -6,36 +6,39 @@
 
 package com.microsoft.jenkins.acs.commands;
 
-import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
-import com.microsoft.jenkins.acs.ACSDeploymentContext;
-import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.azurecommons.JobContext;
-import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
-import com.microsoft.jenkins.kubernetes.util.DockerConfigBuilder;
+import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.model.Job;
 import hudson.model.Run;
-import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
+import org.apache.commons.io.IOUtils;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
+import static com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand.nameForBuild;
+import static com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand.prepareCredentialsPath;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,222 +47,123 @@ import static org.mockito.Mockito.when;
  * Tests for the {@link MarathonDeploymentCommand}.
  */
 public class MarathonDeploymentCommandTest {
-    private static final String FQDN = "fqdn.test";
-    private static final String ROOT_USER = "azureuser";
-    private static final String DCOS_CREDENTIALS_PATH = "/mnt/share/dcosshare";
-    private static final String REMOTE_APP_CONFIG_NAME = "acsDep1234567890.json";
-    private static final String MARATHON_APP_ID = "marathon-app-01";
+    private static final String USER = "azureuser";
+    private static final FilePath WORKSPACE = new FilePath(new File(System.getProperty("java.io.tmpdir")));
 
-    @Test
-    public void testSuccessfulExecute() throws Exception {
-        ContextBuilder b = new ContextBuilder();
+    private MarathonDeploymentCommand command;
+    private SSHClient master;
+    private SSHClient slave;
 
-        b.executeCommand();
+    private ResolvedDockerRegistryEndpoint[] endpoints;
 
-        final String archivePath = DCOS_CREDENTIALS_PATH + "/docker.tar.gz";
+    @Before
+    public void setup() throws Exception {
+        command = new MarathonDeploymentCommand();
 
-        verify(b.agentClient, times(1)).execRemote("mkdir -p -- '" + DCOS_CREDENTIALS_PATH + "'");
-        verify(b.agentClient, times(1)).copyTo(b.dockerConfigStream, archivePath);
-        verify(b.sshClient, times(1)).copyTo(b.marathonConfigStream, b.remoteDeploymentConfigName);
-        verify(b.sshClient, times(1)).execRemote(
-                "curl -i -X DELETE http://localhost/marathon/v2/apps/" + b.marathonAppId);
-        verify(b.sshClient, times(1)).execRemote(
-                "curl -i -H 'Content-Type: application/json' -d@'" + b.remoteDeploymentConfigName
-                        + "' http://localhost/marathon/v2/apps?force=true");
-        verify(b.sshClient, times(1)).execRemote("rm -f -- '" + b.remoteDeploymentConfigName + "'");
+        endpoints = new ResolvedDockerRegistryEndpoint[]{
+                new ResolvedDockerRegistryEndpoint(
+                        new URL("https://index.docker.io/v1/"),
+                        new DockerRegistryToken("user", "dXNlcjpwYXNzd29yZA==")),
+                new ResolvedDockerRegistryEndpoint(
+                        new URL("http://acr.azurecr.io"),
+                        new DockerRegistryToken("anotherUser", "YW5vdGhlclVzZXI6aGFoYWhh"))
+        };
     }
 
     @Test
-    public void testNullDeploymentConfig() throws Exception {
-        ContextBuilder b = new ContextBuilder().withDeploymentConfig(null);
-        b.executeCommand();
-
-        verify(b.context, times(1)).setCommandState(CommandState.HasError);
-        verify(b.externalUtils, never()).buildSSHClient(
-                any(String.class),
-                any(Integer.TYPE),
-                any(SSHUserPrivateKey.class));
+    public void testCopyCredentialsToAgentsEmpty() throws Exception {
+        Map<String, String> results = command.copyCredentialsToAgents(
+                null, null, null, null, false, null, new ArrayList<ResolvedDockerRegistryEndpoint>(0), null, null);
+        assertTrue(results.isEmpty());
     }
 
     @Test
-    public void testEmptyConfigFiles() throws Exception {
-        ContextBuilder b = new ContextBuilder().withConfigFiles((FilePath[]) null);
-        b.executeCommand();
+    public void testCopyCredentialsToAgentsSuccess() throws Exception {
+        prepareSSHClient();
+        final boolean shared = false;
+        Map<String, String> results = command.copyCredentialsToAgents(
+                master, USER, WORKSPACE, "/creds", shared, "some-name", Arrays.asList(endpoints), new EnvVars(), System.out);
 
-        verify(b.context, times(1)).setCommandState(CommandState.HasError);
-        verify(b.externalUtils, never()).buildSSHClient(
-                any(String.class),
-                any(Integer.TYPE),
-                any(SSHUserPrivateKey.class));
-
-        b = new ContextBuilder().withConfigFiles();
-        b.executeCommand();
-        verify(b.context, times(1)).setCommandState(CommandState.HasError);
-        verify(b.externalUtils, never()).buildSSHClient(
-                any(String.class),
-                any(Integer.TYPE),
-                any(SSHUserPrivateKey.class));
+        verify(slave, times(4)).copyTo(any(InputStream.class), any(String.class));
+        assertEquals("file:///creds/docker.tar.gz", results.get(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI));
     }
 
     @Test
-    public void testNoRegistryCredentials() throws Exception {
-        ContextBuilder b = new ContextBuilder().withoutRegistryCredentials();
-        b.executeCommand();
+    public void testCopyCredentialsToAgentsShared() throws Exception {
+        prepareSSHClient();
+        final boolean shared = true;
+        Map<String, String> results = command.copyCredentialsToAgents(
+                master, USER, WORKSPACE, "/shared", shared, "some-name", Arrays.asList(endpoints), new EnvVars(), System.out);
 
-        verify(b.sshClient, never()).execRemote("mkdir -p -- '" + DCOS_CREDENTIALS_PATH + "'");
-        verify(b.context, times(1)).setCommandState(CommandState.Success);
+        verify(slave, times(1)).copyTo(any(InputStream.class), any(String.class));
+        assertEquals("file:///shared/docker.tar.gz", results.get(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI));
     }
 
-    /**
-     * Log warning but allow it to proceed.
-     *
-     * @see com.microsoft.jenkins.acs.util.DeployHelper#checkURIForMarathon(String)
-     */
     @Test
-    public void testInvalidDcosCredentialsPath() throws Exception {
-        ContextBuilder b = new ContextBuilder().withDcosCredentialsPath("/invalid'path*");
-        b.executeCommand();
-
-        verify(b.context, times(1)).setCommandState(CommandState.Success);
+    public void testGetAgentNodesFromString() throws Exception {
+        String nodesString = IOUtils.toString(MarathonDeploymentCommand.class.getResourceAsStream("nodes.json"));
+        List<String> nodes = MarathonDeploymentCommand.getAgentNodes(nodesString);
+        assertEquals(Arrays.asList("10.0.0.4", "10.32.0.6", "10.32.0.8", "10.32.0.4"), nodes);
     }
 
-    private static class ContextBuilder {
-        MarathonDeploymentCommand.IMarathonDeploymentCommandData context;
+    @Test
+    public void testPrepareCredentialsPath() {
+        EnvVars empty = new EnvVars();
+        EnvVars one = new EnvVars("one", "Azure");
+        String user = "azureuser";
 
-        DeploymentConfig deploymentConfig;
-        FilePath configFile;
-        FilePath[] configFiles;
-        JobContext jobContext;
-        FilePath workspace;
-        EnvVars envVars;
-        Run<?, ?> run;
-        Job job;
-        String dcosDockerCredentialsPath;
-        boolean dockerCredentialsPathShared;
-        SSHUserPrivateKey sshCredentials;
-        MarathonDeploymentCommand.ExternalUtils externalUtils;
-        SSHClient sshClient;
-        SSHClient agentClient;
-        DockerConfigBuilder dockerConfigBuilder;
-        FilePath credentialsPath;
-        InputStream dockerConfigStream;
-        String remoteDeploymentConfigName;
-        ByteArrayInputStream marathonConfigStream;
-        String marathonAppId;
-        List<DockerRegistryEndpoint> registryEndpoints;
-
-        ContextBuilder() throws Exception {
-            this.context = mock(ACSDeploymentContext.class);
-
-            final Answer<Void> answer = new Answer<Void>() {
-                @Override
-                public Void answer(InvocationOnMock invocation) throws Throwable {
-                    context.setCommandState(CommandState.HasError);
-                    return null;
-                }
-            };
-
-            doAnswer(answer).when(context).logError(any(String.class));
-            doAnswer(answer).when(context).logError(any(Exception.class));
-            doAnswer(answer).when(context).logError(any(String.class), any(Exception.class));
-
-            jobContext = mock(JobContext.class);
-            doReturn(mock(PrintStream.class)).when(jobContext).logger();
-            workspace = mock(FilePath.class);
-            doReturn(workspace).when(jobContext).getWorkspace();
-            envVars = new EnvVars();
-            doReturn(jobContext).when(context).getJobContext();
-            doReturn(envVars).when(context).getEnvVars();
-            run = mock(Run.class);
-            //noinspection ResultOfMethodCallIgnored
-            doReturn(run).when(jobContext).getRun();
-            job = mock(Job.class);
-            doReturn(job).when(run).getParent();
-
-            sshCredentials = mock(SSHUserPrivateKey.class);
-            doReturn(sshCredentials).when(context).getSshCredentials();
-            doReturn(FQDN).when(context).getMgmtFQDN();
-            doReturn(ROOT_USER).when(context).getLinuxAdminUsername();
-
-            deploymentConfig = mock(DeploymentConfig.class);
-            doReturn(deploymentConfig).when(context).getDeploymentConfig();
-            configFile = mock(FilePath.class);
-            doReturn(mock(InputStream.class)).when(configFile).read();
-            configFiles = new FilePath[]{configFile};
-            when(deploymentConfig.getConfigFiles()).thenReturn(configFiles);
-
-            dcosDockerCredentialsPath = DCOS_CREDENTIALS_PATH;
-            doReturn(dcosDockerCredentialsPath).when(context).getDcosDockerCredentialsPath();
-            dockerCredentialsPathShared = true;
-            doReturn(dockerCredentialsPathShared).when(context).isDcosDockerCredenditalsPathShared();
-
-            externalUtils = mock(MarathonDeploymentCommand.ExternalUtils.class);
-            sshClient = mock(SSHClient.class);
-            doReturn(sshClient).when(externalUtils).buildSSHClient(
-                    any(String.class),
-                    any(Integer.TYPE),
-                    any(SSHUserPrivateKey.class));
-            doReturn(sshClient).when(sshClient).withLogger(any(PrintStream.class));
-            doReturn(sshClient).when(sshClient).connect();
-
-            final String agent = "10.32.0.5";
-            List<String> agents = new ArrayList<>(Collections.singletonList(agent));
-            doReturn(agents).when(externalUtils).getAgentNodes(sshClient);
-
-            agentClient = mock(SSHClient.class);
-            doReturn(agentClient).when(sshClient).forwardSSH(agent, Constants.DEFAULT_SSH_PORT);
-            doReturn(agentClient).when(agentClient).withLogger(any(PrintStream.class));
-            doReturn(agentClient).when(agentClient).connect();
-
-            registryEndpoints = mock(List.class);
-            doReturn(false).when(registryEndpoints).isEmpty();
-            doReturn(registryEndpoints).when(context).getContainerRegistryCredentials();
-
-            dockerConfigBuilder = mock(DockerConfigBuilder.class);
-            doReturn(dockerConfigBuilder).when(externalUtils).buildDockerConfigBuilder(registryEndpoints);
-            credentialsPath = mock(FilePath.class);
-            dockerConfigStream = mock(InputStream.class);
-            doReturn(dockerConfigStream).when(credentialsPath).read();
-            doReturn(credentialsPath).when(dockerConfigBuilder).buildArchive(workspace, job);
-            remoteDeploymentConfigName = REMOTE_APP_CONFIG_NAME;
-            doReturn(remoteDeploymentConfigName).when(externalUtils).buildRemoteDeployConfigName();
-
-            marathonConfigStream = mock(ByteArrayInputStream.class);
-            doReturn(marathonConfigStream).when(externalUtils).replaceMacro(any(InputStream.class), any(EnvVars.class), any(Boolean.TYPE));
-
-            marathonAppId = MARATHON_APP_ID;
-            doReturn(marathonAppId).when(externalUtils).getMarathonAppId(marathonConfigStream);
-
-            dockerConfigBuilder = mock(DockerConfigBuilder.class);
-
-            doReturn(true).when(context).isEnableConfigSubstitution();
+        try {
+            prepareCredentialsPath("relative/path", "", empty, user);
+            fail("Should not allow relative path");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
 
-        ContextBuilder withDeploymentConfig(DeploymentConfig config) throws IOException, InterruptedException {
-            this.deploymentConfig = config;
-            doReturn(deploymentConfig).when(context).getDeploymentConfig();
-            return this;
-        }
+        assertEquals("/path/1", prepareCredentialsPath("/path/1", "o", empty, user));
+        assertEquals("/path/2", prepareCredentialsPath("/path/2/", "o", empty, user));
+        assertEquals("/", prepareCredentialsPath("////", "o", empty, user));
+        assertEquals("/path/Azure", prepareCredentialsPath("/path/$one", "o", one, user));
+        assertEquals("/home/azureuser/acs-plugin-dcos.docker/test-dir", prepareCredentialsPath(null, "test-dir", one, user));
+    }
 
-        ContextBuilder withConfigFiles(FilePath... configFiles) {
-            this.configFiles = configFiles;
-            when(deploymentConfig.getConfigFiles()).thenReturn(configFiles);
-            return this;
-        }
+    @Test
+    public void testNameForBuild() {
+        assertEquals("acs-plugin-dcos-abcdef", nameForBuild(jobContext("abc", "def")));
+        assertEquals("acs-plugin-dcos-abc", nameForBuild(jobContext("abc", "")));
+        assertEquals("acs-plugin-dcos-def", nameForBuild(jobContext("", "def")));
+        assertEquals("acs-plugin-dcos-a-cde-", nameForBuild(jobContext("a.c", "de/")));
+        String name = nameForBuild(jobContext("", ""));
+        String prefix = "acs-plugin-dcos-";
+        assertTrue(name.length() > prefix.length());
+        UUID.fromString(name.substring(prefix.length()));
+    }
 
-        ContextBuilder withoutRegistryCredentials() {
-            doReturn(true).when(registryEndpoints).isEmpty();
-            return this;
-        }
+    private JobContext jobContext(String jobName, String runName) {
+        JobContext context = mock(JobContext.class);
+        Run run = mock(Run.class);
+        Job job = mock(Job.class);
+        when(context.getRun()).thenReturn(run);
+        when(run.getParent()).thenReturn(job);
+        when(run.getDisplayName()).thenReturn(runName);
+        when(job.getName()).thenReturn(jobName);
+        return context;
+    }
 
-        ContextBuilder withDcosCredentialsPath(String path) {
-            this.dcosDockerCredentialsPath = path;
-            doReturn(path).when(context).getDcosDockerCredentialsPath();
-            return this;
-        }
-
-        void executeCommand() {
-            new MarathonDeploymentCommand(externalUtils).execute(context);
-        }
+    private void prepareSSHClient() throws Exception {
+        master = mock(SSHClient.class);
+        String nodes = IOUtils.toString(MarathonDeploymentCommand.class.getResourceAsStream("nodes.json"));
+        when(master.execRemote("curl http://leader.mesos:1050/system/health/v1/nodes")).thenReturn(nodes);
+        slave = mock(SSHClient.class);
+        when(master.forwardSSH(any(String.class), any(Integer.TYPE))).thenReturn(slave);
+        when(slave.withLogger(any(PrintStream.class))).thenReturn(slave);
+        when(slave.connect()).thenReturn(slave);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                InputStream in = invocation.getArgument(0);
+                in.close();
+                return null;
+            }
+        }).when(slave).copyTo(any(InputStream.class), any(String.class));
     }
 }

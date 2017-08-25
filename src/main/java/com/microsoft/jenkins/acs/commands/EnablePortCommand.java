@@ -6,6 +6,7 @@
 
 package com.microsoft.jenkins.acs.commands;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
@@ -94,6 +95,7 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
     }
 
+    @VisibleForTesting
     static int filterPortsToOpen(
             Collection<NetworkSecurityRule> rules,
             Set<Integer> portsToOpen,
@@ -303,10 +305,6 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         }
 
         update.apply();
-    }
-
-    private static class TaskResult implements Serializable {
-        private CommandState commandState = CommandState.HasError;
     }
 
     public interface IEnablePortCommandData extends IBaseCommandData {

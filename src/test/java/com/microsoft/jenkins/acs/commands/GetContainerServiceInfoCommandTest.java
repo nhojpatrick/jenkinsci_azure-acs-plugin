@@ -10,19 +10,16 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.compute.ContainerServices;
-import com.microsoft.jenkins.acs.ACSDeploymentContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
+import org.junit.Before;
 import org.junit.Test;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
+import static com.microsoft.jenkins.acs.commands.GetContainerServiceInfoCommand.TaskResult;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for the {@link GetContainerServiceInfoCommand}
@@ -35,77 +32,54 @@ public class GetContainerServiceInfoCommandTest {
     private static final String FQDN = "fqdn.test";
     private static final String ROOT_USER = "azureuser";
 
-    @Test
-    public void testExecuteSuccess() {
-        GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData context =
-                prepareContext(true, ORCHESTRATOR_TYPE);
+    private Azure azure;
+    private GetContainerServiceInfoCommand command;
 
-        new GetContainerServiceInfoCommand().execute(context);
-
-        verify(context, times(1)).setMgmtFQDN(FQDN);
-        verify(context, times(1)).setLinuxRootUsername(ROOT_USER);
-
-        verify(context, times(1)).setCommandState(CommandState.Success);
+    @Before
+    public void setup() {
+        azure = prepareAzure();
+        command = new GetContainerServiceInfoCommand();
     }
 
     @Test
-    public void testContainerServiceNotFound() {
-        GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData context =
-                prepareContext(false, ORCHESTRATOR_TYPE);
-        new GetContainerServiceInfoCommand().execute(context);
-
-        verify(context, never()).setMgmtFQDN(any(String.class));
-        verify(context, never()).setLinuxRootUsername(any(String.class));
-        verify(context, times(1)).setCommandState(CommandState.HasError);
+    public void testGetAcsInfoSuccess() {
+        TaskResult result = command.getAcsInfo(azure, RESOURCE_GROUP_NAME, CONTAINER_SERVICE_NAME, ORCHESTRATOR_TYPE, System.out);
+        assertEquals(CommandState.Success, result.getCommandState());
+        assertEquals(ORCHESTRATOR_TYPE, result.getOrchestratorType());
+        assertEquals(FQDN, result.getFqdn());
+        assertEquals(ROOT_USER, result.getAdminUsername());
     }
 
     @Test
-    public void testOrchestratorTypeNotMatch() {
-        GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData context =
-                prepareContext(true, ContainerServiceOchestratorTypes.DCOS);
-        new GetContainerServiceInfoCommand().execute(context);
-
-        verify(context, never()).setMgmtFQDN(any(String.class));
-        verify(context, never()).setLinuxRootUsername(any(String.class));
-        verify(context, times(1)).setCommandState(CommandState.HasError);
+    public void testGetAcsInfoContainerServiceNotFound() {
+        TaskResult result = command.getAcsInfo(azure, RESOURCE_GROUP_NAME, CONTAINER_SERVICE_NAME + 1, ORCHESTRATOR_TYPE, System.out);
+        assertEquals(CommandState.HasError, result.getCommandState());
+        assertNull(result.getOrchestratorType());
     }
 
-    private GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData prepareContext(
-            final boolean returnContainerService,
-            final ContainerServiceOchestratorTypes configuredOrchestratorType) {
-        final GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData context =
-                mock(ACSDeploymentContext.class);
+    @Test
+    public void testGetAcsInfoOrchestratorTypeNotMatch() {
+        final ContainerServiceOchestratorTypes configuredType = ContainerServiceOchestratorTypes.DCOS;
+        assertNotEquals(ORCHESTRATOR_TYPE, configuredType);
+        TaskResult result = command.getAcsInfo(azure, RESOURCE_GROUP_NAME, CONTAINER_SERVICE_NAME, configuredType, System.out);
+        assertEquals(CommandState.HasError, result.getCommandState());
+        assertEquals(ORCHESTRATOR_TYPE, result.getOrchestratorType());
+        assertNull(result.getFqdn());
+    }
 
-        doAnswer(new Answer() {
-            @Override
-            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                context.setCommandState(CommandState.HasError);
-                return null;
-            }
-        }).when(context).logError(any(String.class));
-
-        Azure azureClient = mock(Azure.class);
-        doReturn(azureClient).when(context).getAzureClient();
-        doReturn(RESOURCE_GROUP_NAME).when(context).getResourceGroupName();
-        doReturn(CONTAINER_SERVICE_NAME).when(context).getContainerServiceName();
+    private Azure prepareAzure() {
+        Azure azure = mock(Azure.class);
 
         ContainerServices containerServices = mock(ContainerServices.class);
-        doReturn(containerServices).when(azureClient).containerServices();
-
-        if (!returnContainerService) {
-            return context;
-        }
+        when(azure.containerServices()).thenReturn(containerServices);
 
         ContainerService containerService = mock(ContainerService.class);
-        doReturn(containerService).when(containerServices)
-                .getByResourceGroup(RESOURCE_GROUP_NAME, CONTAINER_SERVICE_NAME);
+        when(containerServices.getByResourceGroup(RESOURCE_GROUP_NAME, CONTAINER_SERVICE_NAME)).thenReturn(containerService);
 
-        doReturn(ORCHESTRATOR_TYPE).when(containerService).orchestratorType();
-        doReturn(configuredOrchestratorType).when(context).getOrchestratorType();
+        when(containerService.orchestratorType()).thenReturn(ORCHESTRATOR_TYPE);
+        when(containerService.masterFqdn()).thenReturn(FQDN);
+        when(containerService.linuxRootUsername()).thenReturn(ROOT_USER);
 
-        doReturn(FQDN).when(containerService).masterFqdn();
-        doReturn(ROOT_USER).when(containerService).linuxRootUsername();
-
-        return context;
+        return azure;
     }
 }

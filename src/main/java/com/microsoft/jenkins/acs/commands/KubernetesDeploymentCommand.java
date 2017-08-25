@@ -87,7 +87,6 @@ public class KubernetesDeploymentCommand
                                         .withLogger(logger);
                         result.masterHost = getMasterHost(clientWrapper);
 
-
                         if (!registryCredentials.isEmpty()) {
                             final String secretName = KubernetesClientWrapper.prepareSecretName(
                                     secretNameCfg, defaultSecretName, envVars);
@@ -160,6 +159,8 @@ public class KubernetesDeploymentCommand
     }
 
     private static class TaskResult implements Serializable {
+        private static final long serialVersionUID = 1L;
+
         private CommandState commandState = CommandState.Unknown;
         private Map<String, String> extraEnvVars = new HashMap<>();
         private String masterHost;

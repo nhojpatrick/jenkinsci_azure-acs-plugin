@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.jcraft.jsch.JSchException;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
@@ -161,7 +162,8 @@ public class MarathonDeploymentCommand
         }
     }
 
-    private Map<String, String> copyCredentialsToAgents(
+    @VisibleForTesting
+    Map<String, String> copyCredentialsToAgents(
             SSHClient client,
             String linuxAdminUsername,
             FilePath workspace,
@@ -171,51 +173,53 @@ public class MarathonDeploymentCommand
             List<ResolvedDockerRegistryEndpoint> dockerCredentials,
             EnvVars envVars,
             PrintStream logger) throws Exception {
-        if (!dockerCredentials.isEmpty()) {
-            DockerConfigBuilder configBuilder = new DockerConfigBuilder(dockerCredentials);
-            FilePath dockercfg = configBuilder.buildArchive(workspace);
-            try {
-                String remotePath = prepareCredentialsPath(
-                        dockerCredentialsPath, credentialsDirectoryName, envVars, linuxAdminUsername);
 
-                String dockerArchivePath = remotePath + "/" + Constants.MARATHON_DOCKER_CFG_ARCHIVE;
+        if (dockerCredentials.isEmpty()) {
+            return ImmutableMap.of();
+        }
 
-                List<String> agents = MarathonDeploymentCommand.getAgentNodes(client);
-                for (String agent : agents) {
-                    logger.println(Messages.MarathonDeploymentCommand_prepareDockerCredentialsFor(agent));
+        DockerConfigBuilder configBuilder = new DockerConfigBuilder(dockerCredentials);
+        FilePath dockercfg = configBuilder.buildArchive(workspace);
+        try {
+            String remotePath = prepareCredentialsPath(
+                    dockerCredentialsPath, credentialsDirectoryName, envVars, linuxAdminUsername);
 
-                    // tunnel through the master SSH connection to connect to the agent SSH service
-                    SSHClient forwardClient =
-                            client.forwardSSH(agent, Constants.DEFAULT_SSH_PORT).withLogger(logger);
-                    try (SSHClient connected = forwardClient.connect()) {
-                        // prepare the remote directory structure
-                        connected.execRemote(String.format("mkdir -p -- '%s'", escapeSingleQuote(remotePath)));
+            String dockerArchivePath = remotePath + "/" + Constants.MARATHON_DOCKER_CFG_ARCHIVE;
 
-                        logger.println(Messages.MarathonDeploymentCommand_copyDockerCfgTo(
-                                dockercfg.getRemote(), agent, dockerArchivePath));
-                        connected.copyTo(dockercfg.read(), dockerArchivePath);
+            List<String> agents = getAgentNodes(client);
+            for (String agent : agents) {
+                logger.println(Messages.MarathonDeploymentCommand_prepareDockerCredentialsFor(agent));
 
-                        if (dcosDockerCredenditalsPathShared) {
-                            logger.println(Messages.MarathonDeploymentCommand_skipAsPathShared());
-                            break;
-                        }
+                // tunnel through the master SSH connection to connect to the agent SSH service
+                SSHClient forwardClient =
+                        client.forwardSSH(agent, Constants.DEFAULT_SSH_PORT).withLogger(logger);
+                try (SSHClient connected = forwardClient.connect()) {
+                    // prepare the remote directory structure
+                    connected.execRemote(String.format("mkdir -p -- '%s'", escapeSingleQuote(remotePath)));
+
+                    logger.println(Messages.MarathonDeploymentCommand_copyDockerCfgTo(
+                            dockercfg.getRemote(), agent, dockerArchivePath));
+                    connected.copyTo(dockercfg.read(), dockerArchivePath);
+
+                    if (dcosDockerCredenditalsPathShared) {
+                        logger.println(Messages.MarathonDeploymentCommand_skipAsPathShared());
+                        break;
                     }
                 }
-
-                if (!DeployHelper.checkURIForMarathon(dockerArchivePath)) {
-                    logger.println(Messages.MarathonDeploymentCommand_uriNotAccepted());
-                }
-                String archiveUri = "file://" + encodeURIPath(dockerArchivePath);
-                // inject the environment variable
-                logger.println(Messages.MarathonDeploymentCommand_injectEnvironmentVar(
-                        Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
-                envVars.put(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
-                return ImmutableMap.of(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
-            } finally {
-                dockercfg.delete();
             }
+
+            if (!DeployHelper.checkURIForMarathon(dockerArchivePath)) {
+                logger.println(Messages.MarathonDeploymentCommand_uriNotAccepted());
+            }
+            String archiveUri = "file://" + encodeURIPath(dockerArchivePath);
+            // inject the environment variable
+            logger.println(Messages.MarathonDeploymentCommand_injectEnvironmentVar(
+                    Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri));
+            envVars.put(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
+            return ImmutableMap.of(Constants.MARATHON_DOCKER_CFG_ARCHIVE_URI, archiveUri);
+        } finally {
+            dockercfg.delete();
         }
-        return ImmutableMap.of();
     }
 
     private static List<String> getAgentNodes(
@@ -231,7 +235,8 @@ public class MarathonDeploymentCommand
         return hosts;
     }
 
-    private static List<String> getAgentNodes(String json) {
+    @VisibleForTesting
+    static List<String> getAgentNodes(String json) {
         // sample input
         // {
         //     "nodes": [
@@ -264,7 +269,8 @@ public class MarathonDeploymentCommand
         return agentNodes;
     }
 
-    private static String prepareCredentialsPath(
+    @VisibleForTesting
+    static String prepareCredentialsPath(
             String dcosDockerCredentialsPath,
             String credentialsDirectoryName,
             EnvVars envVars,
@@ -284,7 +290,8 @@ public class MarathonDeploymentCommand
         return "/home/" + linuxAdminUsername + "/acs-plugin-dcos.docker/" + credentialsDirectoryName;
     }
 
-    private static String nameForBuild(JobContext jobContext) {
+    @VisibleForTesting
+    static String nameForBuild(JobContext jobContext) {
         String runName = StringUtils.trimToEmpty(
                 jobContext.getRun().getParent().getName() + jobContext.getRun().getDisplayName());
         if (StringUtils.isBlank(runName)) {
