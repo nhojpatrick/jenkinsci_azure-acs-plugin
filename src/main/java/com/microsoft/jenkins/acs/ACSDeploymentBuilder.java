@@ -15,19 +15,18 @@ import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
-import hudson.tasks.Publisher;
-import hudson.tasks.Recorder;
+import hudson.tasks.Builder;
 import jenkins.tasks.SimpleBuildStep;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 
-public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
+public class ACSDeploymentBuilder extends Builder implements SimpleBuildStep {
     private ACSDeploymentContext context;
 
     @DataBoundConstructor
-    public ACSDeploymentRecorder(ACSDeploymentContext context) {
+    public ACSDeploymentBuilder(ACSDeploymentContext context) {
         this.context = context;
     }
 
@@ -38,6 +37,11 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
     @Override
     public BuildStepMonitor getRequiredMonitorService() {
         return BuildStepMonitor.NONE;
+    }
+
+    @Override
+    public DescriptorImpl getDescriptor() {
+        return (DescriptorImpl) super.getDescriptor();
     }
 
     @Override
@@ -68,7 +72,7 @@ public class ACSDeploymentRecorder extends Recorder implements SimpleBuildStep {
      * for the actual HTML fragment for the configuration screen.
      */
     @Extension
-    public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
+    public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types
