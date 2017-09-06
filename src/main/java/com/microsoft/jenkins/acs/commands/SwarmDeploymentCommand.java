@@ -2,7 +2,7 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.annotations.VisibleForTesting;
-import com.jcraft.jsch.JSchException;
+import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -12,90 +12,99 @@ import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.model.Item;
+import hudson.model.TaskListener;
+import jenkins.security.MasterToSlaveCallable;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
-import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
-import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.List;
 
 import static com.microsoft.jenkins.acs.util.DeployHelper.escapeSingleQuote;
 
-public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.ISwarmDeploymentCommandData> {
-    private final ExternalUtils externalUtils;
-
-    public SwarmDeploymentCommand() {
-        this(ExternalUtils.DEFAULT);
-    }
-
-    @VisibleForTesting
-    SwarmDeploymentCommand(ExternalUtils externalUtils) {
-        this.externalUtils = externalUtils;
-    }
+public class SwarmDeploymentCommand
+        implements ICommand<SwarmDeploymentCommand.ISwarmDeploymentCommandData>, Serializable {
+    private static final long serialVersionUID = 1L;
 
     public void execute(SwarmDeploymentCommand.ISwarmDeploymentCommandData context) {
+        JobContext jobContext = context.getJobContext();
+        final FilePath workspace = jobContext.getWorkspace();
+        final TaskListener taskListener = jobContext.getTaskListener();
+        final EnvVars envVars = context.getEnvVars();
         final String host = context.getMgmtFQDN();
         final SSHUserPrivateKey sshCredentials = context.getSshCredentials();
-        final JobContext jobContext = context.getJobContext();
+        final boolean enableSubstitution = context.isEnableConfigSubstitution();
+        final boolean swarmRemoveContainerFirst = context.isSwarmRemoveContainersFirst();
+        final DeploymentConfig.Factory configFactory = new DeploymentConfig.Factory(context.getConfigFilePaths());
+        final ContainerServiceOchestratorTypes orchestratorType = context.getOrchestratorType();
 
         try {
-            final DeploymentConfig config = context.getDeploymentConfig();
-            if (config == null) {
-                context.logError(Messages.DeploymentConfig_invalidConfig());
-                return;
-            }
+            final List<ResolvedDockerRegistryEndpoint> registryCredentials =
+                    context.resolvedDockerRegistryEndpoints(jobContext.getRun().getParent());
 
-            SSHClient client = externalUtils.buildSSHClient(host, Constants.SWARM_SSH_PORT, sshCredentials)
-                    .withLogger(jobContext.logger());
+            CommandState state = workspace.act(new MasterToSlaveCallable<CommandState, Exception>() {
+                private static final long serialVersionUID = 1L;
 
-            try (SSHClient connected = client.connect()) {
-                prepareCredendtialsOnAgents(context, jobContext, connected);
+                @Override
+                public CommandState call() throws Exception {
+                    PrintStream logger = taskListener.getLogger();
 
-                EnvVars envVars = context.getEnvVars();
+                    DeploymentConfig deploymentConfig = configFactory.build(orchestratorType, workspace, envVars);
+                    FilePath[] configFiles = deploymentConfig.getConfigFiles();
 
-                final FilePath[] configFiles = config.getConfigFiles();
-                for (FilePath configFile : configFiles) {
-                    final String deployedFilename = externalUtils.buildRemoteDeployConfigName();
-                    context.logStatus(Messages.SwarmDeploymentCommand_copyConfigFileTo(
-                            configFile.getRemote(), connected.getHost(), deployedFilename));
+                    SSHClient client = new SSHClient(host, Constants.SWARM_SSH_PORT, sshCredentials)
+                            .withLogger(logger);
 
-                    connected.copyTo(
-                            externalUtils.replaceMacro(
-                                    configFile.read(), envVars, context.isEnableConfigSubstitution()),
-                            deployedFilename);
+                    try (SSHClient connected = client.connect()) {
+                        prepareCredentialsForSwarm(connected, registryCredentials, logger);
 
-                    final String escapedName = escapeSingleQuote(deployedFilename);
+                        for (FilePath configFile : configFiles) {
+                            final String deployedFilename = DeployHelper.generateRandomDeploymentFileName("yml");
+                            logger.println(Messages.SwarmDeploymentCommand_copyConfigFileTo(
+                                    configFile.getRemote(), connected.getHost(), deployedFilename));
 
-                    if (context.isSwarmRemoveContainersFirst()) {
-                        context.logStatus(Messages.SwarmDeploymentCommand_removingDockerContainers());
-                        try {
-                            connected.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' down",
+                            connected.copyTo(
+                                    DeployHelper.replaceMacro(
+                                            configFile.read(), envVars, enableSubstitution),
+                                    deployedFilename);
+
+                            final String escapedName = escapeSingleQuote(deployedFilename);
+
+                            if (swarmRemoveContainerFirst) {
+                                logger.println(Messages.SwarmDeploymentCommand_removingDockerContainers());
+                                try {
+                                    connected.execRemote(String.format(
+                                            "DOCKER_HOST=:2375 docker-compose -f '%s' down",
+                                            escapedName));
+                                } catch (SSHClient.ExitStatusException ex) {
+                                    // the service was not found
+                                    logger.println(ex.getMessage());
+                                }
+                            }
+
+                            // Note that we have to specify DOCKER_HOST in the command rather than using
+                            // `ChannelExec.setEnv` as the latter one sets environment variable through SSH protocol
+                            // but the default sshd_config doesn't allow this
+                            logger.println(Messages.SwarmDeploymentCommand_updatingDockerContainers());
+                            connected.execRemote(String.format(
+                                    "DOCKER_HOST=:2375 docker-compose -f '%s' up -d",
                                     escapedName));
-                        } catch (SSHClient.ExitStatusException ex) {
-                            // the service was not found
-                            context.logStatus(ex.getMessage());
+
+                            logger.println(Messages.SwarmDeploymentCommand_removeTempFile(deployedFilename));
+                            connected.execRemote(String.format("rm -f -- '%s'", escapedName));
                         }
                     }
-
-                    // Note that we have to specify DOCKER_HOST in the command rather than using `ChannelExec.setEnv`
-                    // as the latter one sets environment variable through SSH protocol but the default sshd_config
-                    // doesn't allow this
-                    context.logStatus(Messages.SwarmDeploymentCommand_updatingDockerContainers());
-                    connected.execRemote(String.format("DOCKER_HOST=:2375 docker-compose -f '%s' up -d",
-                            escapedName));
-
-                    context.logStatus(Messages.SwarmDeploymentCommand_removeTempFile(deployedFilename));
-                    connected.execRemote("rm -f -- '" + escapedName + "'");
+                    return CommandState.Success;
                 }
-            }
+            });
 
-            context.setCommandState(CommandState.Success);
+            context.setCommandState(state);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             context.logError(e);
@@ -104,21 +113,13 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
         }
     }
 
-    private void prepareCredendtialsOnAgents(
-            SwarmDeploymentCommand.ISwarmDeploymentCommandData context,
-            JobContext jobContext,
-            SSHClient client) throws Exception {
-        final List<DockerRegistryEndpoint> containerRegistryCredentials = context.getContainerRegistryCredentials();
-        final Item tokenContext = jobContext.getRun().getParent();
-
-        for (DockerRegistryEndpoint endpoint : containerRegistryCredentials) {
-            DockerRegistryToken token = endpoint.getToken(tokenContext);
-            if (token == null) {
-                // no credentials filled for this entry
-                continue;
-            }
-
-            String auth = StringUtils.trimToEmpty(token.getToken());
+    @VisibleForTesting
+    static void prepareCredentialsForSwarm(
+            SSHClient client,
+            List<ResolvedDockerRegistryEndpoint> registryCredentials,
+            PrintStream logger) throws Exception {
+        for (ResolvedDockerRegistryEndpoint endpoint : registryCredentials) {
+            String auth = StringUtils.trimToEmpty(endpoint.getToken().getToken());
             if (StringUtils.isEmpty(auth)) {
                 throw new IllegalArgumentException(Messages.SwarmDeploymentConfig_noAuthTokenFor(endpoint));
             }
@@ -131,58 +132,29 @@ public class SwarmDeploymentCommand implements ICommand<SwarmDeploymentCommand.I
 
             String username = parts[0];
             String password = parts[1];
-            String server = endpoint.getEffectiveUrl().toString();
+            String server = endpoint.getUrl().toString();
 
             final String command = String.format("docker login -u '%s' -p '%s' '%s'",
                     escapeSingleQuote(username), escapeSingleQuote(password), escapeSingleQuote(server));
 
-            context.logStatus(Messages.SwarmDeploymentConfig_addCredentialsFor(server));
+            logger.println(Messages.SwarmDeploymentConfig_addCredentialsFor(server));
             client.execRemote(command, false, false);
         }
-    }
-
-    @VisibleForTesting
-    interface ExternalUtils {
-        SSHClient buildSSHClient(String host,
-                                 int port,
-                                 SSHUserPrivateKey credentials) throws JSchException;
-
-        String buildRemoteDeployConfigName();
-
-        ByteArrayInputStream replaceMacro(InputStream original, EnvVars envVars, boolean enabled) throws IOException;
-
-        ExternalUtils DEFAULT = new ExternalUtils() {
-            @Override
-            public SSHClient buildSSHClient(String host, int port, SSHUserPrivateKey credentials) throws JSchException {
-                return new SSHClient(host, port, credentials);
-            }
-
-            @Override
-            public String buildRemoteDeployConfigName() {
-                return DeployHelper.generateRandomDeploymentFileName("yml");
-            }
-
-            @Override
-            public ByteArrayInputStream replaceMacro(
-                    InputStream original, EnvVars envVars, boolean enabled) throws IOException {
-                return DeployHelper.replaceMacro(original, envVars, enabled);
-            }
-        };
     }
 
     public interface ISwarmDeploymentCommandData extends IBaseCommandData {
         String getMgmtFQDN();
 
-        String getLinuxAdminUsername();
-
         SSHUserPrivateKey getSshCredentials();
 
-        DeploymentConfig getDeploymentConfig() throws IOException, InterruptedException;
+        String getConfigFilePaths();
+
+        ContainerServiceOchestratorTypes getOrchestratorType();
 
         boolean isEnableConfigSubstitution();
 
         boolean isSwarmRemoveContainersFirst();
 
-        List<DockerRegistryEndpoint> getContainerRegistryCredentials();
+        List<ResolvedDockerRegistryEndpoint> resolvedDockerRegistryEndpoints(Item context) throws IOException;
     }
 }

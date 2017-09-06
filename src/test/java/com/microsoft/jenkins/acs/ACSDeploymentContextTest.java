@@ -1,18 +1,31 @@
 package com.microsoft.jenkins.acs;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.google.common.collect.ImmutableList;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.util.Constants;
+import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
+import hudson.model.Item;
 import hudson.util.FormValidation;
 import org.hamcrest.Matchers;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
 import org.junit.Test;
+
+import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
 
 import static com.microsoft.jenkins.acs.ACSDeploymentContext.validate;
 import static com.microsoft.jenkins.acs.ACSTestHelper.expectException;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for the {@link ACSDeploymentContext}.
@@ -58,6 +71,58 @@ public class ACSDeploymentContextTest {
                 ACSDeploymentContext.getOrchestratorType("test-container|");
             }
         });
+    }
+
+    @Test
+    public void testContainerRegistryCredentials() {
+        ACSDeploymentContext context = new ACSDeploymentContext(null, null, null, null, null);
+        assertListEquals(ImmutableList.of(), context.getContainerRegistryCredentials());
+
+        context.setContainerRegistryCredentials(ImmutableList.of(
+                new DockerRegistryEndpoint("", "credentials-1")
+        ));
+        assertListEquals(ImmutableList.of(new DockerRegistryEndpoint("", "credentials-1")), context.getContainerRegistryCredentials());
+
+        context.setContainerRegistryCredentials(ImmutableList.of(
+                new DockerRegistryEndpoint("", "credentials-1"),
+                new DockerRegistryEndpoint("acr.azurecr.io", "credentials-2")
+        ));
+        assertListEquals(
+                ImmutableList.of(
+                        new DockerRegistryEndpoint("", "credentials-1"),
+                        new DockerRegistryEndpoint("http://acr.azurecr.io", "credentials-2")
+                ), context.getContainerRegistryCredentials());
+    }
+
+    private <T> void assertListEquals(List<? extends T> expected, List<? extends T> actual) {
+        assertNotNull(actual);
+        assertEquals(expected.toString(), actual.toString());
+    }
+
+    @Test
+    public void testResolveEndpoints() throws Exception {
+        DockerRegistryEndpoint endpoint1 = mock(DockerRegistryEndpoint.class);
+        DockerRegistryToken token1 = mock(DockerRegistryToken.class);
+        when(endpoint1.getEffectiveUrl()).thenReturn(new URL("https://index.docker.io/v1/"));
+        when(endpoint1.getCredentialsId()).thenReturn("cred-1");
+        when(endpoint1.getToken(any(Item.class))).thenReturn(token1);
+
+        DockerRegistryEndpoint endpoint2 = mock(DockerRegistryEndpoint.class);
+        DockerRegistryToken token2 = mock(DockerRegistryToken.class);
+        when(endpoint2.getEffectiveUrl()).thenReturn(new URL("http://acr.azurecr.io"));
+        when(endpoint2.getCredentialsId()).thenReturn("cred-2");
+        when(endpoint2.getToken(any(Item.class))).thenReturn(token2);
+
+        ACSDeploymentContext context = spy(new ACSDeploymentContext(null, null, null, null, null));
+        assertTrue(context.resolvedDockerRegistryEndpoints(mock(Item.class)).isEmpty());
+
+        doReturn(Arrays.asList(endpoint1, endpoint2)).when(context).getContainerRegistryCredentials();
+        List<ResolvedDockerRegistryEndpoint> resolved = context.resolvedDockerRegistryEndpoints(mock(Item.class));
+        assertEquals(2, resolved.size());
+        assertEquals(new URL("https://index.docker.io/v1/"), resolved.get(0).getUrl());
+        assertEquals(token1, resolved.get(0).getToken());
+        assertEquals(new URL("http://acr.azurecr.io"), resolved.get(1).getUrl());
+        assertEquals(token2, resolved.get(1).getToken());
     }
 
     @Test

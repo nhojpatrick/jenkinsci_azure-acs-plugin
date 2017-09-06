@@ -50,16 +50,16 @@ public class ACSDeploymentBuilder extends Builder implements SimpleBuildStep {
             @Nonnull FilePath workspace,
             @Nonnull Launcher launcher,
             @Nonnull TaskListener listener) throws IOException, InterruptedException {
-        listener.getLogger().println(Messages.ACSDeploymentRecorder_starting());
+        listener.getLogger().println(Messages.ACSDeploymentBuilder_starting());
         this.context.configure(run, workspace, launcher, listener);
         this.context.executeCommands();
 
         if (context.getLastCommandState().isError()) {
             listener.getLogger().println(
-                    Messages.ACSDeploymentRecorder_endWithErrorState(context.getCommandState()));
+                    Messages.ACSDeploymentBuilder_endWithErrorState(context.getCommandState()));
             run.setResult(Result.FAILURE);
         } else {
-            listener.getLogger().println(Messages.ACSDeploymentRecorder_finished());
+            listener.getLogger().println(Messages.ACSDeploymentBuilder_finished());
         }
 
     }

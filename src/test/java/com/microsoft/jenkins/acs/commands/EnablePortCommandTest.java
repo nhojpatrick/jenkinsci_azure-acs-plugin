@@ -3,10 +3,29 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.Page;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.network.*;
+import com.microsoft.azure.management.network.LoadBalancer;
+import com.microsoft.azure.management.network.LoadBalancerBackend;
+import com.microsoft.azure.management.network.LoadBalancerFrontend;
+import com.microsoft.azure.management.network.LoadBalancerHttpProbe;
+import com.microsoft.azure.management.network.LoadBalancerInboundNatPool;
+import com.microsoft.azure.management.network.LoadBalancerInboundNatRule;
+import com.microsoft.azure.management.network.LoadBalancerPrivateFrontend;
+import com.microsoft.azure.management.network.LoadBalancerPublicFrontend;
+import com.microsoft.azure.management.network.LoadBalancerTcpProbe;
+import com.microsoft.azure.management.network.LoadBalancers;
+import com.microsoft.azure.management.network.LoadBalancingRule;
+import com.microsoft.azure.management.network.LoadDistribution;
+import com.microsoft.azure.management.network.Network;
+import com.microsoft.azure.management.network.NetworkSecurityGroup;
+import com.microsoft.azure.management.network.NetworkSecurityGroups;
+import com.microsoft.azure.management.network.NetworkSecurityRule;
+import com.microsoft.azure.management.network.Protocol;
+import com.microsoft.azure.management.network.PublicIPAddress;
+import com.microsoft.azure.management.network.SecurityRuleAccess;
+import com.microsoft.azure.management.network.SecurityRuleDirection;
+import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.azure.management.resources.fluentcore.model.Creatable;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
-import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.rest.RestException;
 import com.microsoft.rest.ServiceCallback;
 import com.microsoft.rest.ServiceFuture;
@@ -18,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,40 +64,37 @@ public class EnablePortCommandTest {
 
     @Test
     public void filterPortsToOpen_RuleAllowAll() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-        final Collection<NetworkSecurityRule> rules = Arrays.asList(
-            mockNetworkSecurityRule(10, "*", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
+        final Collection<NetworkSecurityRule> rules = Collections.singletonList(
+                mockNetworkSecurityRule(10, "*", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+        final Set<Integer> portsToOpen = new HashSet<>(Collections.singletonList(8080));
 
-        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
         Assert.assertEquals(10, maxPriority);
         Assert.assertTrue(portsToOpen.isEmpty());
     }
 
     @Test
     public void filterPortsToOpen_RuleRange() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-        final Collection<NetworkSecurityRule> rules = Arrays.asList(
-            mockNetworkSecurityRule(10, "8000-9000", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
+        final Collection<NetworkSecurityRule> rules = Collections.singletonList(
+                mockNetworkSecurityRule(10, "8000-9000", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080, 9090));
+        final Set<Integer> portsToOpen = new HashSet<>(Arrays.asList(8080, 9090));
 
-        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
         Assert.assertEquals(10, maxPriority);
-        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(9090)), portsToOpen);
+        Assert.assertEquals(new HashSet<>(Collections.singletonList(9090)), portsToOpen);
     }
 
     @Test
     public void filterPortsToOpen_RuleRangeInvalidNumberFormat() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-        final Collection<NetworkSecurityRule> rules = Arrays.asList(
+        final Collection<NetworkSecurityRule> rules = Collections.singletonList(
                 mockNetworkSecurityRule(10, "8081-xx", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+        final Set<Integer> portsToOpen = new HashSet<>(Collections.singletonList(8080));
 
         try {
-            final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+            final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
             Assert.fail("Should throw InvalidConfigException");
         } catch (EnablePortCommand.InvalidConfigException e) {
             // Should throw
@@ -86,42 +103,39 @@ public class EnablePortCommandTest {
 
     @Test
     public void filterPortsToOpen_RuleSingle() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
         final Collection<NetworkSecurityRule> rules = Arrays.asList(
                 mockNetworkSecurityRule(20, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND),
                 mockNetworkSecurityRule(10, "8081", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080, 8081, 8082));
+        final Set<Integer> portsToOpen = new HashSet<>(Arrays.asList(8080, 8081, 8082));
 
-        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
         Assert.assertEquals(20, maxPriority);
-        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8082)), portsToOpen);
+        Assert.assertEquals(new HashSet<>(Collections.singletonList(8082)), portsToOpen);
     }
 
     @Test
     public void filterPortsToOpen_RuleDeny() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-        final Collection<NetworkSecurityRule> rules = Arrays.asList(
+        final Collection<NetworkSecurityRule> rules = Collections.singletonList(
                 mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.DENY, SecurityRuleDirection.INBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+        final Set<Integer> portsToOpen = new HashSet<>(Collections.singletonList(8080));
 
-        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
         Assert.assertEquals(10, maxPriority);
-        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8080)), portsToOpen);
+        Assert.assertEquals(new HashSet<>(Collections.singletonList(8080)), portsToOpen);
     }
 
     @Test
     public void filterPortsToOpen_RuleOutbound() throws EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-        final Collection<NetworkSecurityRule> rules = Arrays.asList(
+        final Collection<NetworkSecurityRule> rules = Collections.singletonList(
                 mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.OUTBOUND)
         );
-        final Set<Integer> portsToOpen = new HashSet<Integer>(Arrays.asList(8080));
+        final Set<Integer> portsToOpen = new HashSet<>(Collections.singletonList(8080));
 
-        final int maxPriority = EnablePortCommand.filterPortsToOpen(context, rules, portsToOpen);
+        final int maxPriority = EnablePortCommand.filterPortsToOpen(rules, portsToOpen, System.out);
         Assert.assertEquals(10, maxPriority);
-        Assert.assertEquals(new HashSet<Integer>(Arrays.asList(8080)), portsToOpen);
+        Assert.assertEquals(new HashSet<>(Collections.singletonList(8080)), portsToOpen);
     }
 
     private NetworkSecurityGroup mockNetworkSecurityGroup(String name, Map<String, NetworkSecurityRule> rulesSet) {
@@ -155,42 +169,40 @@ public class EnablePortCommandTest {
 
     @Test
     public void createSecurityRules() throws IOException, EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-
-        final Map<String, NetworkSecurityRule> rulesSet = new HashMap<String, NetworkSecurityRule>();
+        final Map<String, NetworkSecurityRule> rulesSet = new HashMap<>();
         rulesSet.put("rule1", mockNetworkSecurityRule(10, "8080", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND));
         rulesSet.put("rule2", mockNetworkSecurityRule(20, "8081", SecurityRuleAccess.ALLOW, SecurityRuleDirection.INBOUND));
 
         final NetworkSecurityGroup nsg = mockNetworkSecurityGroup("dcos-agent-public-nsg-xxx", rulesSet);
-        final Azure azureClient = mockAzureClientWithNetworkSecurityGroups(Arrays.asList(nsg));
+        final Azure azureClient = mockAzureClientWithNetworkSecurityGroups(Collections.singletonList(nsg));
 
         final List<ServicePort> servicePorts = Arrays.asList(
-            new ServicePort(8080, 8080, Protocol.TCP),
-            new ServicePort(8081, 8081, Protocol.TCP),
-            new ServicePort(8082, 8082, Protocol.TCP),
-            new ServicePort(8083, 8083, Protocol.TCP)
+                new ServicePort(8080, 8080, Protocol.TCP),
+                new ServicePort(8081, 8081, Protocol.TCP),
+                new ServicePort(8082, 8082, Protocol.TCP),
+                new ServicePort(8083, 8083, Protocol.TCP)
         );
 
         EnablePortCommand.createSecurityRules(
-            context,
-            azureClient,
-            "resource-group",
-            "dcos",
-            servicePorts
+                azureClient,
+                "resource-group",
+                "dcos",
+                servicePorts,
+                System.out
         );
 
         final NetworkSecurityGroup.Update update = nsg.update();
 
         verify(update
-            .defineRule("Allow_" + 8082)
-            .allowInbound()
-            .fromAddress("Internet")
-            .fromAnyPort()
-            .toAnyAddress()
-            .toPort(8082)
-            .withAnyProtocol()
-            .withDescription(anyString())
-            .withPriority(30)
+                .defineRule("Allow_" + 8082)
+                .allowInbound()
+                .fromAddress("Internet")
+                .fromAnyPort()
+                .toAnyAddress()
+                .toPort(8082)
+                .withAnyProtocol()
+                .withDescription(anyString())
+                .withPriority(30)
         ).attach();
 
         verify(update
@@ -217,9 +229,9 @@ public class EnablePortCommandTest {
     }
 
     private LoadBalancer mockLoadBalancer(String name,
-            Map<String, LoadBalancerBackend> backends,
-            Map<String, LoadBalancerFrontend> frontends,
-            Map<String, LoadBalancingRule> rulesSet) {
+                                          Map<String, LoadBalancerBackend> backends,
+                                          Map<String, LoadBalancerFrontend> frontends,
+                                          Map<String, LoadBalancingRule> rulesSet) {
         final LoadBalancer lb = mock(LoadBalancer.class);
         when(lb.name()).thenReturn(name);
         when(lb.backends()).thenReturn(backends);
@@ -249,19 +261,17 @@ public class EnablePortCommandTest {
 
     @Test
     public void createLoadBalancerRules() throws IOException, EnablePortCommand.InvalidConfigException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-
-        final Map<String, LoadBalancerBackend> backends = new HashMap<String, LoadBalancerBackend>();
+        final Map<String, LoadBalancerBackend> backends = new HashMap<>();
         final LoadBalancerBackend backend = mock(LoadBalancerBackend.class);
         when(backend.name()).thenReturn("backend");
         backends.put("backend", backend);
 
-        final Map<String, LoadBalancerFrontend> frontends = new HashMap<String, LoadBalancerFrontend>();
+        final Map<String, LoadBalancerFrontend> frontends = new HashMap<>();
         final LoadBalancerFrontend frontend = mock(LoadBalancerFrontend.class);
         when(frontend.name()).thenReturn("frontend");
         frontends.put("frontend", frontend);
 
-        final Map<String, LoadBalancingRule> rulesSet = new HashMap<String, LoadBalancingRule>();
+        final Map<String, LoadBalancingRule> rulesSet = new HashMap<>();
         rulesSet.put("rule1", mockLoadBalancingRule("rule1", 8080, TransportProtocol.TCP));
         rulesSet.put("rule2", mockLoadBalancingRule("rule2", 8081, TransportProtocol.UDP));
 
@@ -271,7 +281,7 @@ public class EnablePortCommandTest {
         final MockLoadBalancerUpdate update = new MockLoadBalancerUpdate();
         when(lb.update()).thenReturn(update);
 
-        final Azure azureClient = mockAzureClientWithLoadBalancers(Arrays.asList(lb));
+        final Azure azureClient = mockAzureClientWithLoadBalancers(Collections.singletonList(lb));
 
         final List<ServicePort> servicePorts = Arrays.asList(
                 new ServicePort(8080, 8080, Protocol.TCP),
@@ -280,11 +290,11 @@ public class EnablePortCommandTest {
         );
 
         EnablePortCommand.createLoadBalancerRules(
-                context,
                 azureClient,
                 "resource-group",
                 "dcos",
-                servicePorts
+                servicePorts,
+                System.out
         );
 
         Assert.assertTrue(update.isApplied);
@@ -320,18 +330,16 @@ public class EnablePortCommandTest {
 
     @Test
     public void createLoadBalancerRules_MissMatchBackendFrontend() throws IOException {
-        final IBaseCommandData context = mock(IBaseCommandData.class);
-
-        final Map<String, LoadBalancerBackend> backends = new HashMap<String, LoadBalancerBackend>();
-        final Map<String, LoadBalancerFrontend> frontends = new HashMap<String, LoadBalancerFrontend>();
-        final Map<String, LoadBalancingRule> rulesSet = new HashMap<String, LoadBalancingRule>();
+        final Map<String, LoadBalancerBackend> backends = new HashMap<>();
+        final Map<String, LoadBalancerFrontend> frontends = new HashMap<>();
+        final Map<String, LoadBalancingRule> rulesSet = new HashMap<>();
         final LoadBalancer lb = mockLoadBalancer("dcos-agent-lb-xxx", backends, frontends, rulesSet);
 
         // Mockito has some issues for this kind of builder pattern so we mock manually
         final MockLoadBalancerUpdate update = new MockLoadBalancerUpdate();
         when(lb.update()).thenReturn(update);
 
-        final Azure azureClient = mockAzureClientWithLoadBalancers(Arrays.asList(lb));
+        final Azure azureClient = mockAzureClientWithLoadBalancers(Collections.singletonList(lb));
 
         final List<ServicePort> servicePorts = Arrays.asList(
                 new ServicePort(8080, 8080, Protocol.TCP),
@@ -341,12 +349,11 @@ public class EnablePortCommandTest {
 
         try {
             EnablePortCommand.createLoadBalancerRules(
-                    context,
                     azureClient,
                     "resource-group",
                     "dcos",
-                    servicePorts
-            );
+                    servicePorts,
+                    System.out);
             Assert.fail("Should throw InvalidConfigException");
         } catch (EnablePortCommand.InvalidConfigException ex) {
             Assert.assertFalse(update.isApplied);
@@ -394,7 +401,7 @@ public class EnablePortCommandTest {
     }
 
     private static final class MockLoadBalancingRule implements
-            LoadBalancingRule.UpdateDefinitionStages.Blank<LoadBalancer.Update> ,
+            LoadBalancingRule.UpdateDefinitionStages.Blank<LoadBalancer.Update>,
             LoadBalancingRule.UpdateDefinitionStages.WithFrontend<LoadBalancer.Update>,
             LoadBalancingRule.UpdateDefinitionStages.WithFrontendPort<LoadBalancer.Update>,
             LoadBalancingRule.UpdateDefinitionStages.WithProbe<LoadBalancer.Update>,
@@ -494,8 +501,8 @@ public class EnablePortCommandTest {
     private static final class MockLoadBalancerUpdate implements LoadBalancer.Update {
 
         public boolean isApplied;
-        public final List<MockLoadBalancerTcpProbe> tcpProbes = new ArrayList<MockLoadBalancerTcpProbe>();
-        public final List<MockLoadBalancingRule> rules = new ArrayList<MockLoadBalancingRule>();
+        public final List<MockLoadBalancerTcpProbe> tcpProbes = new ArrayList<>();
+        public final List<MockLoadBalancingRule> rules = new ArrayList<>();
 
         @Override
         public LoadBalancer.Update withoutBackend(String name) {

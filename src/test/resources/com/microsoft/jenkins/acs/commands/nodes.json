@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "host_ip": "172.16.0.5",
+      "health": 0,
+      "role": "master"
+    },
+    {
+      "host_ip": "10.0.0.4",
+      "health": 0,
+      "role": "agent_public"
+    },
+    {
+      "host_ip": "10.32.0.6",
+      "health": 0,
+      "role": "agent"
+    },
+    {
+      "host_ip": "10.32.0.8",
+      "health": 0,
+      "role": "agent"
+    },
+    {
+      "host_ip": "10.32.0.4",
+      "health": 0,
+      "role": "agent"
+    }
+  ]
+}

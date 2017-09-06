@@ -28,10 +28,6 @@ import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.RunOn;
 import com.microsoft.jenkins.acs.commands.SwarmDeploymentCommand;
-import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
-import com.microsoft.jenkins.acs.orchestrators.KubernetesDeploymentConfig;
-import com.microsoft.jenkins.acs.orchestrators.MarathonDeploymentConfig;
-import com.microsoft.jenkins.acs.orchestrators.SwarmDeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
@@ -41,7 +37,7 @@ import com.microsoft.jenkins.azurecommons.command.CommandService;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
-import hudson.EnvVars;
+import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -55,6 +51,7 @@ import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryEndpoint;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerRegistryToken;
 import org.jenkinsci.plugins.workflow.steps.StepContext;
 import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
 import org.jenkinsci.plugins.workflow.steps.StepExecution;
@@ -97,13 +94,9 @@ public class ACSDeploymentContext extends BaseCommandContext
     private boolean dcosDockerCredenditalsPathShared;
     private List<DockerRegistryEndpoint> containerRegistryCredentials;
 
-    private transient Azure azureClient;
     private transient String mgmtFQDN;
-    private transient String linuxAdminUsername;
     private transient ContainerServiceOchestratorTypes orchestratorType;
     private transient SSHUserPrivateKey sshCredentials;
-
-    private transient DeploymentConfig deploymentConfig;
 
     @DataBoundConstructor
     public ACSDeploymentContext(
@@ -120,7 +113,7 @@ public class ACSDeploymentContext extends BaseCommandContext
     }
 
     @Override
-    public StepExecution start(StepContext context) throws Exception {
+    public StepExecution startImpl(StepContext context) throws Exception {
         return new ExecutionImpl(new ACSDeploymentBuilder(this), context);
     }
 
@@ -182,17 +175,14 @@ public class ACSDeploymentContext extends BaseCommandContext
         return RunOn.fromString(getRunOn());
     }
 
+    @Override
     public String getAzureCredentialsId() {
         return azureCredentialsId;
     }
 
+    @Override
     public String getConfigFilePaths() {
         return this.configFilePaths;
-    }
-
-    @Override
-    public DeploymentConfig getDeploymentConfig() {
-        return deploymentConfig;
     }
 
     public String getSshCredentialsId() {
@@ -225,16 +215,6 @@ public class ACSDeploymentContext extends BaseCommandContext
     @Override
     public IBaseCommandData getDataForCommand(ICommand command) {
         return this;
-    }
-
-    @Override
-    public String getLinuxAdminUsername() {
-        return linuxAdminUsername;
-    }
-
-    @Override
-    public void setLinuxRootUsername(String username) {
-        this.linuxAdminUsername = username;
     }
 
     /**
@@ -271,11 +251,6 @@ public class ACSDeploymentContext extends BaseCommandContext
     @Override
     public String getContainerServiceName() {
         return getContainerServiceName(getContainerService());
-    }
-
-    @Override
-    public Azure getAzureClient() {
-        return this.azureClient;
     }
 
     @Override
@@ -377,14 +352,25 @@ public class ACSDeploymentContext extends BaseCommandContext
         this.containerRegistryCredentials = endpoints;
     }
 
+    @Override
+    public List<ResolvedDockerRegistryEndpoint> resolvedDockerRegistryEndpoints(Item context) throws IOException {
+        List<ResolvedDockerRegistryEndpoint> endpoints = new ArrayList<>();
+        List<DockerRegistryEndpoint> configured = getContainerRegistryCredentials();
+        for (DockerRegistryEndpoint endpoint : configured) {
+            DockerRegistryToken token = endpoint.getToken(context);
+            if (token == null) {
+                throw new IllegalArgumentException("No credentials found for " + endpoint);
+            }
+            endpoints.add(new ResolvedDockerRegistryEndpoint(endpoint.getEffectiveUrl(), token));
+        }
+        return endpoints;
+    }
+
     public void configure(
             @Nonnull Run<?, ?> run,
             @Nonnull FilePath workspace,
             @Nonnull Launcher launcher,
             @Nonnull TaskListener listener) throws IOException, InterruptedException {
-
-        this.azureClient = AzureHelper.buildClientFromCredentialsId(getAzureCredentialsId());
-
         CommandService commandService = CommandService.builder()
                 .withTransition(CheckBuildResultCommand.class, GetContainerServiceInfoCommand.class)
                 .withTransition(GetContainerServiceInfoCommand.class, DeploymentChoiceCommand.class)
@@ -396,29 +382,6 @@ public class ACSDeploymentContext extends BaseCommandContext
 
         final JobContext jobContext = new JobContext(run, workspace, launcher, listener);
         super.configure(jobContext, commandService);
-
-        // Build DeploymentConfig
-        final EnvVars envVars = getEnvVars();
-        final String expandedConfigFilePaths = envVars.expand(getConfigFilePaths());
-        final FilePath[] configFiles = jobContext.getWorkspace().list(expandedConfigFilePaths);
-        if (configFiles.length == 0) {
-            throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(getConfigFilePaths()));
-        }
-
-        switch (getOrchestratorType()) {
-            case DCOS:
-                deploymentConfig = new MarathonDeploymentConfig(configFiles);
-                break;
-            case KUBERNETES:
-                deploymentConfig = new KubernetesDeploymentConfig(configFiles);
-                break;
-            case SWARM:
-                deploymentConfig = new SwarmDeploymentConfig(configFiles);
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        Messages.ACSDeploymentContext_orchestratorNotSupported(getOrchestratorType()));
-        }
     }
 
     private static SSHUserPrivateKey getSshCredentials(String id) {
@@ -675,21 +638,7 @@ public class ACSDeploymentContext extends BaseCommandContext
         }
 
         public ListBoxModel doFillSshCredentialsIdItems(@AncestorInPath Item owner) {
-            List<SSHUserPrivateKey> credentials;
-            if (owner == null) {
-                credentials = CredentialsProvider.lookupCredentials(
-                        SSHUserPrivateKey.class,
-                        Jenkins.getInstance(),
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList());
-            } else {
-                credentials = CredentialsProvider.lookupCredentials(
-                        SSHUserPrivateKey.class,
-                        owner,
-                        ACL.SYSTEM,
-                        Collections.<DomainRequirement>emptyList());
-            }
-            ListBoxModel m = new StandardListBoxModel().withAll(credentials);
+            ListBoxModel m = new StandardListBoxModel().includeAs(ACL.SYSTEM, owner, SSHUserPrivateKey.class);
             return m;
         }
 
