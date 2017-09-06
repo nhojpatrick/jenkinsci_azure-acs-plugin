@@ -169,7 +169,7 @@ public class MarathonDeploymentCommandTest {
             doReturn(workspace).when(jobContext).getWorkspace();
             envVars = new EnvVars();
             doReturn(jobContext).when(context).getJobContext();
-            doReturn(envVars).when(jobContext).envVars();
+            doReturn(envVars).when(context).getEnvVars();
             run = mock(Run.class);
             //noinspection ResultOfMethodCallIgnored
             doReturn(run).when(jobContext).getRun();
@@ -225,7 +225,7 @@ public class MarathonDeploymentCommandTest {
             doReturn(remoteDeploymentConfigName).when(externalUtils).buildRemoteDeployConfigName();
 
             marathonConfigStream = mock(ByteArrayInputStream.class);
-            doReturn(marathonConfigStream).when(jobContext).replaceMacro(any(InputStream.class), any(Boolean.TYPE));
+            doReturn(marathonConfigStream).when(externalUtils).replaceMacro(any(InputStream.class), any(EnvVars.class), any(Boolean.TYPE));
 
             marathonAppId = MARATHON_APP_ID;
             doReturn(marathonAppId).when(externalUtils).getMarathonAppId(marathonConfigStream);

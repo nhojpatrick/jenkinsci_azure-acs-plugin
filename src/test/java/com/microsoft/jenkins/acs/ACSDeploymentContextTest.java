@@ -66,35 +66,32 @@ public class ACSDeploymentContextTest {
         ValidatorBuilder builder = new ValidatorBuilder(azureCredentialsId).withEmptyServicePrincipal();
 
         assertEquals("ERROR: Azure credentials is not configured or found",
-                validate(azureCredentialsId, "", "", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "", "", "", builder.credentailsFinder));
 
         builder = new ValidatorBuilder(azureCredentialsId);
         assertEquals("ERROR: Azure resource group is not configured",
-                validate(azureCredentialsId, "", "", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "", "", "", builder.credentailsFinder));
         assertEquals("ERROR: Azure resource group is not configured",
-                validate(azureCredentialsId, Constants.INVALID_OPTION, "", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, Constants.INVALID_OPTION, "", "", builder.credentailsFinder));
 
         assertEquals("ERROR: Azure container service name is not configured",
-                validate(azureCredentialsId, "rg", "", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "", "", builder.credentailsFinder));
         assertEquals("ERROR: Azure container service name is not configured",
-                validate(azureCredentialsId, "rg", "*", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "*", "", builder.credentailsFinder));
 
         assertEquals("ERROR: SSH credentials is not configured",
-                validate(azureCredentialsId, "rg", "cs", "", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs", "", builder.credentailsFinder));
         builder = new ValidatorBuilder(azureCredentialsId).withoutSshCredentials();
         assertEquals("ERROR: SSH credentials is not configured",
-                validate(azureCredentialsId, "rg", "cs", "ssh", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs", "ssh", builder.credentailsFinder));
 
         builder = new ValidatorBuilder(azureCredentialsId);
         assertEquals("Container service orchestrator type is not specified",
-                validate(azureCredentialsId, "rg", "cs", "ssh", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs", "ssh", builder.credentailsFinder));
         assertEquals("ERROR: Container Service orchestrator type not-supported is not supported",
-                validate(azureCredentialsId, "rg", "cs|not-supported", "ssh", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs|not-supported", "ssh", builder.credentailsFinder));
         assertEquals("ERROR: Container Service orchestrator type Custom is not supported",
-                validate(azureCredentialsId, "rg", "cs|Custom", "ssh", "", builder.credentailsFinder));
-
-        assertEquals("ERROR: Kubernetes namespace is not configured",
-                validate(azureCredentialsId, "rg", "cs|Kubernetes", "ssh", "", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs|Custom", "ssh", builder.credentailsFinder));
     }
 
     @Test

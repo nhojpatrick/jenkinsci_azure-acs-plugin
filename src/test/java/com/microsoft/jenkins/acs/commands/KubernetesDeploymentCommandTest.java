@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.List;
@@ -66,9 +65,7 @@ public class KubernetesDeploymentCommandTest {
                 SECRET_NAME,
                 b.registryEndpoints);
 
-        verify(b.kubernetesClientWrapper, times(1)).apply(
-                NAMESPACE,
-                b.configFiles);
+        verify(b.kubernetesClientWrapper, times(1)).apply(b.configFiles);
 
         verify(b.context, times(1)).setCommandState(CommandState.Success);
     }
@@ -100,9 +97,7 @@ public class KubernetesDeploymentCommandTest {
                 SECRET_NAME,
                 b.registryEndpoints);
 
-        verify(b.kubernetesClientWrapper, times(1)).apply(
-                "test-" + ns,
-                b.configFiles);
+        verify(b.kubernetesClientWrapper, times(1)).apply(b.configFiles);
 
         verify(b.context, times(1)).setCommandState(CommandState.Success);
 
@@ -192,7 +187,7 @@ public class KubernetesDeploymentCommandTest {
             doReturn(mock(PrintStream.class)).when(jobContext).logger();
             envVars = new EnvVars();
             doReturn(jobContext).when(context).getJobContext();
-            doReturn(envVars).when(jobContext).envVars();
+            doReturn(envVars).when(context).getEnvVars();
             run = mock(Run.class);
             //noinspection ResultOfMethodCallIgnored
             doReturn(run).when(jobContext).getRun();
@@ -203,9 +198,8 @@ public class KubernetesDeploymentCommandTest {
             sshCredentials = mock(SSHUserPrivateKey.class);
             doReturn(sshCredentials).when(context).getSshCredentials();
             doReturn(FQDN).when(context).getMgmtFQDN();
-            doReturn(ROOT_USER).when(context).getLinuxAdminUsername();
 
-            doReturn(NAMESPACE).when(context).getKubernetesNamespace();
+            doReturn(NAMESPACE).when(context).getSecretNamespace();
             deploymentConfig = mock(DeploymentConfig.class);
             doReturn(deploymentConfig).when(context).getDeploymentConfig();
             configFile = mock(FilePath.class);
@@ -248,7 +242,7 @@ public class KubernetesDeploymentCommandTest {
         }
 
         ContextBuilder withNamespace(String ns) {
-            doReturn(ns).when(context).getKubernetesNamespace();
+            doReturn(ns).when(context).getSecretNamespace();
             return this;
         }
 
@@ -268,12 +262,7 @@ public class KubernetesDeploymentCommandTest {
         }
 
         void executeCommand() {
-            new KubernetesDeploymentCommand(externalUtils) {
-                @Override
-                String clusterNameFromConfig(String kubeconfigFile) throws IOException {
-                    return "";
-                }
-            }.execute(context);
+            new KubernetesDeploymentCommand(externalUtils).execute(context);
         }
     }
 }
