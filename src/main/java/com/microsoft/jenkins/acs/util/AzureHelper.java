@@ -9,7 +9,9 @@ package com.microsoft.jenkins.acs.util;
 import com.microsoft.azure.credentials.AzureTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
+import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 
 /**
@@ -19,7 +21,12 @@ public final class AzureHelper {
 
     public static Azure buildClientFromServicePrincipal(AzureCredentials.ServicePrincipal servicePrincipal) {
         AzureTokenCredentials credentials = DependencyMigration.buildAzureTokenCredentials(servicePrincipal);
-        return Azure.authenticate(credentials).withSubscription(servicePrincipal.getSubscriptionId());
+        return Azure
+                .configure()
+                .withUserAgent(getUserAgent())
+                .withInterceptor(new AzureACSPlugin.AzureTelemetryInterceptor())
+                .authenticate(credentials)
+                .withSubscription(servicePrincipal.getSubscriptionId());
     }
 
     public static Azure buildClientFromCredentialsId(String azureCredentialsId) {
@@ -29,6 +36,18 @@ public final class AzureHelper {
         }
 
         return buildClientFromServicePrincipal(servicePrincipal);
+    }
+
+    private static String getUserAgent() {
+        String version = "local";
+        String instanceId = "local";
+        try {
+            version = AzureHelper.class.getPackage().getImplementationVersion();
+            instanceId = Jenkins.getActiveInstance().getLegacyInstanceId();
+        } catch (Exception e) {
+        }
+
+        return Constants.PLUGIN_NAME + "/" + version + "/" + instanceId;
     }
 
     private AzureHelper() {

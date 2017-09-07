@@ -3,6 +3,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -12,6 +13,7 @@ import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
 import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.EnvVars;
 import hudson.FilePath;
@@ -104,12 +106,19 @@ public class SwarmDeploymentCommand
                 }
             });
 
+            String action = state.isError() ? "DeployFailed" : "Deployed";
+            AzureACSPlugin.sendEvent(Constants.AI_SWARM, action,
+                    Constants.AI_FQDN, AppInsightsUtils.hash(host));
+
             context.setCommandState(state);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            context.logError(e);
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             context.logError(e);
+            AzureACSPlugin.sendEvent(Constants.AI_SWARM, "DeployFailed",
+                    Constants.AI_FQDN, AppInsightsUtils.hash(host),
+                    Constants.AI_MESSAGE, e.getMessage());
         }
     }
 

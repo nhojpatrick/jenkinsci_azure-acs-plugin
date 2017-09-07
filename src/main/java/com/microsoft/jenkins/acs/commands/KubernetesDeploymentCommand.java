@@ -9,6 +9,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -18,6 +19,7 @@ import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
+import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
 import com.microsoft.jenkins.kubernetes.KubernetesClientWrapper;
 import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
 import hudson.EnvVars;
@@ -60,11 +62,12 @@ public class KubernetesDeploymentCommand
         final DeploymentConfig.Factory configFactory = new DeploymentConfig.Factory(context.getConfigFilePaths());
         final ContainerServiceOchestratorTypes orchestratorType = context.getOrchestratorType();
 
+        TaskResult taskResult = null;
         try {
             final List<ResolvedDockerRegistryEndpoint> registryCredentials =
                     context.resolvedDockerRegistryEndpoints(jobContext.getRun().getParent());
 
-            TaskResult taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, Exception>() {
+            taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, Exception>() {
                 @Override
                 public TaskResult call() throws Exception {
                     TaskResult result = new TaskResult();
@@ -132,12 +135,19 @@ public class KubernetesDeploymentCommand
                 EnvironmentInjector.inject(jobContext.getRun(), envVars, entry.getKey(), entry.getValue());
             }
 
+            String action = taskResult.commandState.isError() ? "DeployFailed" : "Deployed";
+            AzureACSPlugin.sendEvent(Constants.AI_KUBERNATES, action,
+                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult.masterHost));
+
             context.setCommandState(taskResult.commandState);
         } catch (Exception e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             context.logError(e);
+            AzureACSPlugin.sendEvent(Constants.AI_KUBERNATES, "DeployFailed",
+                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult == null ? null : taskResult.masterHost),
+                    Constants.AI_MESSAGE, e.getMessage());
         }
     }
 
