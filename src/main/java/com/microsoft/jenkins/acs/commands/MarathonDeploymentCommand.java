@@ -83,11 +83,6 @@ public class MarathonDeploymentCommand
                     PrintStream logger = taskListener.getLogger();
 
                     DeploymentConfig config = deploymentConfigFactory.build(orchestratorType, workspace, envVars);
-                    if (config == null) {
-                        logger.println(Messages.DeploymentConfig_invalidConfig());
-                        result.commandState = CommandState.HasError;
-                        return result;
-                    }
 
                     FilePath[] configPaths = config.getConfigFiles();
                     if (configPaths == null || configPaths.length == 0) {

@@ -10,7 +10,7 @@
     </parent>
 
     <artifactId>azure-acs</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.1-SNAPSHOT</version>
     <packaging>hpi</packaging>
 
     <properties>
@@ -21,8 +21,8 @@
 
         <azuresdk.version>1.1.0</azuresdk.version>
         <azure-credentials-plugin.version>1.2</azure-credentials-plugin.version>
-        <azure-commons.version>1.0-SNAPSHOT</azure-commons.version>
-        <kubernetes-cd.version>1.0-SNAPSHOT</kubernetes-cd.version>
+        <azure-commons.version>0.1-SNAPSHOT</azure-commons.version>
+        <kubernetes-cd.version>0.1-SNAPSHOT</kubernetes-cd.version>
     </properties>
 
     <name>Azure Container Service Plugin</name>
@@ -30,8 +30,6 @@
         Deploy Kubernetes, DC/OS, Docker Swarm application configurations to Azure Container Service cluster.
     </description>
     <url>https://wiki.jenkins-ci.org/display/JENKINS/Azure+Container+Service+Plugin</url>
-
-    <!-- The default licence for Jenkins OSS Plugins is MIT. Substitute for the applicable one if needed. -->
 
     <licenses>
         <license>

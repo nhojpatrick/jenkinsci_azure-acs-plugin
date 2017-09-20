@@ -64,13 +64,6 @@ public class ACSDeploymentBuilder extends Builder implements SimpleBuildStep {
 
     }
 
-    /**
-     * Descriptor for ACSDeployRecorderDescriptor. Used as a singleton.
-     * The class is marked as public so that it can be accessed from views.
-     * <p>
-     * See <tt>src/main/resources/hudson/plugins/hello_world/HelloWorldBuilder/*.jelly</tt>
-     * for the actual HTML fragment for the configuration screen.
-     */
     @Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
 
