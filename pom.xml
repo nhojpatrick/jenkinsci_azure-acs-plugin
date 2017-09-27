@@ -10,7 +10,7 @@
     </parent>
 
     <artifactId>azure-acs</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
     <packaging>hpi</packaging>
 
     <properties>
@@ -21,8 +21,8 @@
 
         <azuresdk.version>1.1.0</azuresdk.version>
         <azure-credentials-plugin.version>1.2</azure-credentials-plugin.version>
-        <azure-commons.version>0.1-SNAPSHOT</azure-commons.version>
-        <kubernetes-cd.version>0.1-SNAPSHOT</kubernetes-cd.version>
+        <azure-commons.version>0.1.1</azure-commons.version>
+        <kubernetes-cd.version>0.1.0</kubernetes-cd.version>
     </properties>
 
     <name>Azure Container Service Plugin</name>
@@ -40,16 +40,16 @@
 
     <developers>
         <developer>
-            <id>vscjenkins</id>
-            <name>Visual Studio China Jenkins Team</name>
+            <id>azure_devops</id>
+            <name>Azure DevOps Team</name>
             <email>vscjenkins@microsoft.com</email>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/Microsoft/${project.artifactId}-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:Microsoft/${project.artifactId}-plugin.git</developerConnection>
-        <url>http://github.com/Microsoft/${project.artifactId}-plugin</url>
+        <connection>scm:git:git://github.com/jenkinsci/${project.artifactId}-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:jenkinsci/${project.artifactId}-plugin.git</developerConnection>
+        <url>http://github.com/jenkinsci/${project.artifactId}-plugin</url>
     </scm>
 
     <repositories>
@@ -169,7 +169,7 @@
                     <configLocation>checkstyle.xml</configLocation>
                     <encoding>UTF-8</encoding>
                     <consoleOutput>true</consoleOutput>
-                    <resourceIncludes>**/*.properties,**/*.jelly,**/*.html</resourceIncludes>
+                    <resourceIncludes>src/main/resources/**</resourceIncludes>
                 </configuration>
             </plugin>
             <plugin>
