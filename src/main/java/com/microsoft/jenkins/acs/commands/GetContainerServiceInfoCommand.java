@@ -11,12 +11,15 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.AzureHelper;
+import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.azurecommons.JobContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
 import hudson.FilePath;
 import hudson.model.TaskListener;
 import jenkins.security.MasterToSlaveCallable;
@@ -42,6 +45,14 @@ public class GetContainerServiceInfoCommand
         final String containerServiceName = context.getContainerServiceName();
         final ContainerServiceOchestratorTypes configuredType = context.getOrchestratorType();
 
+        AzureACSPlugin.sendEventFor(Constants.AI_START_DEPLOY,
+                AzureACSPlugin.getItemNameFromOrchestratorType(context.getOrchestratorType()),
+                jobContext.getRun(),
+                "Subscription", AppInsightsUtils.hash(
+                        servicePrincipal == null ? null : servicePrincipal.getSubscriptionId()),
+                "ResourceGroup", AppInsightsUtils.hash(resourceGroupName),
+                "ContainerServiceName", AppInsightsUtils.hash(containerServiceName));
+
         try {
             TaskResult taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, RuntimeException>() {
                 @Override
@@ -64,6 +75,10 @@ public class GetContainerServiceInfoCommand
                 Thread.currentThread().interrupt();
             }
             context.logError(ex);
+            AzureACSPlugin.sendEventFor("GetInfoFailure",
+                    AzureACSPlugin.getItemNameFromOrchestratorType(context.getOrchestratorType()),
+                    jobContext.getRun(),
+                    Constants.AI_MESSAGE, ex.getMessage());
         }
     }
 

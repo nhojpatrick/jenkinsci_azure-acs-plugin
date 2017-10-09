@@ -150,8 +150,8 @@ public class MarathonDeploymentCommand
                 EnvironmentInjector.inject(jobContext.getRun(), envVars, entry.getKey(), entry.getValue());
             }
 
-            String action = taskResult.commandState.isError() ? "DeployFailed" : "Deployed";
-            AzureACSPlugin.sendEvent(Constants.AI_MARATHON, action,
+            String action = taskResult.commandState.isError() ? Constants.AI_DEPLOY_FAILED : Constants.AI_DEPLOYED;
+            AzureACSPlugin.sendEventFor(action, Constants.AI_DCOS, jobContext.getRun(),
                     Constants.AI_FQDN, AppInsightsUtils.hash(host));
 
             context.setCommandState(taskResult.commandState);
@@ -160,7 +160,7 @@ public class MarathonDeploymentCommand
                 Thread.currentThread().interrupt();
             }
             context.logError(e);
-            AzureACSPlugin.sendEvent(Constants.AI_MARATHON, "DeployFailed",
+            AzureACSPlugin.sendEventFor(Constants.AI_DEPLOY_FAILED, Constants.AI_DCOS, jobContext.getRun(),
                     Constants.AI_FQDN, AppInsightsUtils.hash(host),
                     Constants.AI_MESSAGE, e.getMessage());
         }
