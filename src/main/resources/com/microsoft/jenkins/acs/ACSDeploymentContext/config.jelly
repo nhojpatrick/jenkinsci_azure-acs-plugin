@@ -6,13 +6,6 @@
 
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
-    <f:entry title="${%runOn_title}" field="runOn">
-        <f:radio name="runOn" value="Success" title="Run only if build succeeds"
-                 checked="${instance.runOn ne 'SuccessOrUnstable'}"/>
-        <f:radio name="runOn" value="SuccessOrUnstable" title="Run only if build succeeds or is unstable"
-                 checked="${instance.runOn eq 'SuccessOrUnstable'}"/>
-    </f:entry>
-
     <f:section title="${%deploymentConfiguration_title}">
         <f:entry title="${%azureCredentialsId_title}" field="azureCredentialsId">
             <c:select expressionAllowed="false"/>
