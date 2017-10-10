@@ -138,19 +138,6 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <directory>${project.basedir}</directory>
-                <includes>
-                    <include>RuntimeLicenses/License.txt</include>
-                    <include>RuntimeLicenses/ThirdPartyNotices.txt</include>
-                    <include>LICENSE.txt</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
