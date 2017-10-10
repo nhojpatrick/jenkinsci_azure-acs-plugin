@@ -106,8 +106,8 @@ public class SwarmDeploymentCommand
                 }
             });
 
-            String action = state.isError() ? "DeployFailed" : "Deployed";
-            AzureACSPlugin.sendEvent(Constants.AI_SWARM, action,
+            String action = state.isError() ? Constants.AI_DEPLOY_FAILED : Constants.AI_DEPLOYED;
+            AzureACSPlugin.sendEventFor(action, Constants.AI_SWARM, jobContext.getRun(),
                     Constants.AI_FQDN, AppInsightsUtils.hash(host));
 
             context.setCommandState(state);
@@ -116,7 +116,7 @@ public class SwarmDeploymentCommand
                 Thread.currentThread().interrupt();
             }
             context.logError(e);
-            AzureACSPlugin.sendEvent(Constants.AI_SWARM, "DeployFailed",
+            AzureACSPlugin.sendEventFor(Constants.AI_DEPLOY_FAILED, Constants.AI_SWARM, jobContext.getRun(),
                     Constants.AI_FQDN, AppInsightsUtils.hash(host),
                     Constants.AI_MESSAGE, e.getMessage());
         }

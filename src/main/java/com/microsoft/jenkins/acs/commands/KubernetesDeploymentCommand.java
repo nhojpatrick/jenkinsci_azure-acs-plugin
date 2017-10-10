@@ -135,9 +135,9 @@ public class KubernetesDeploymentCommand
                 EnvironmentInjector.inject(jobContext.getRun(), envVars, entry.getKey(), entry.getValue());
             }
 
-            String action = taskResult.commandState.isError() ? "DeployFailed" : "Deployed";
-            AzureACSPlugin.sendEvent(Constants.AI_KUBERNATES, action,
-                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult.masterHost));
+            String action = taskResult.commandState.isError() ? Constants.AI_DEPLOY_FAILED : Constants.AI_DEPLOYED;
+            AzureACSPlugin.sendEventFor(action, Constants.AI_KUBERNATES, jobContext.getRun(),
+                    Constants.AI_FQDN, AppInsightsUtils.hash(managementFqdn));
 
             context.setCommandState(taskResult.commandState);
         } catch (Exception e) {
@@ -145,8 +145,8 @@ public class KubernetesDeploymentCommand
                 Thread.currentThread().interrupt();
             }
             context.logError(e);
-            AzureACSPlugin.sendEvent(Constants.AI_KUBERNATES, "DeployFailed",
-                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult == null ? null : taskResult.masterHost),
+            AzureACSPlugin.sendEventFor(Constants.AI_DEPLOY_FAILED, Constants.AI_KUBERNATES, jobContext.getRun(),
+                    Constants.AI_FQDN, AppInsightsUtils.hash(managementFqdn),
                     Constants.AI_MESSAGE, e.getMessage());
         }
     }

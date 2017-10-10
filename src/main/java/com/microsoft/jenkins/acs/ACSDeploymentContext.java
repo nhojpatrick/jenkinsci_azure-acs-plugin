@@ -20,13 +20,11 @@ import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
-import com.microsoft.jenkins.acs.commands.CheckBuildResultCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
 import com.microsoft.jenkins.acs.commands.GetContainerServiceInfoCommand;
 import com.microsoft.jenkins.acs.commands.KubernetesDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.MarathonDeploymentCommand;
-import com.microsoft.jenkins.acs.commands.RunOn;
 import com.microsoft.jenkins.acs.commands.SwarmDeploymentCommand;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -69,7 +67,7 @@ import java.util.List;
 import java.util.Set;
 
 public class ACSDeploymentContext extends BaseCommandContext
-        implements CheckBuildResultCommand.ICheckBuildResultCommandData,
+        implements
         GetContainerServiceInfoCommand.IGetContainerServiceInfoCommandData,
         EnablePortCommand.IEnablePortCommandData,
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
@@ -82,8 +80,6 @@ public class ACSDeploymentContext extends BaseCommandContext
     private final String containerService;
     private final String sshCredentialsId;
     private final String configFilePaths;
-
-    private String runOn;
 
     private boolean enableConfigSubstitution;
     private boolean swarmRemoveContainersFirst;
@@ -156,23 +152,6 @@ public class ACSDeploymentContext extends BaseCommandContext
                 return base;
             }
         }
-    }
-
-    public String getRunOn() {
-        if (StringUtils.isBlank(runOn)) {
-            return getDescriptor().getDefaultRunOn();
-        }
-        return runOn;
-    }
-
-    @DataBoundSetter
-    public void setRunOn(String runOn) {
-        this.runOn = runOn;
-    }
-
-    @Override
-    public RunOn getRunOnOption() {
-        return RunOn.fromString(getRunOn());
     }
 
     @Override
@@ -372,12 +351,11 @@ public class ACSDeploymentContext extends BaseCommandContext
             @Nonnull Launcher launcher,
             @Nonnull TaskListener listener) throws IOException, InterruptedException {
         CommandService commandService = CommandService.builder()
-                .withTransition(CheckBuildResultCommand.class, GetContainerServiceInfoCommand.class)
                 .withTransition(GetContainerServiceInfoCommand.class, DeploymentChoiceCommand.class)
                 .withSingleCommand(KubernetesDeploymentCommand.class)
                 .withTransition(MarathonDeploymentCommand.class, EnablePortCommand.class)
                 .withTransition(SwarmDeploymentCommand.class, EnablePortCommand.class)
-                .withStartCommand(CheckBuildResultCommand.class)
+                .withStartCommand(GetContainerServiceInfoCommand.class)
                 .build();
 
         final JobContext jobContext = new JobContext(run, workspace, launcher, listener);

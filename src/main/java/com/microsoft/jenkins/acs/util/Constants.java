@@ -82,9 +82,16 @@ public final class Constants {
     /**
      * AI constants.
      */
+    public static final String AI_ACS = "ACS";
     public static final String AI_SWARM = "Swarm";
     public static final String AI_KUBERNATES = "Kubernates";
-    public static final String AI_MARATHON = "Marathon";
+    public static final String AI_DCOS = "DCOS";
+    public static final String AI_CUSTOM = "Custom";
+    public static final String AI_RUN = "Run";
+    public static final String AI_ORCHESTRATOR = "Orchestrator";
+    public static final String AI_START_DEPLOY = "StartDeploy";
+    public static final String AI_DEPLOYED = "Deployed";
+    public static final String AI_DEPLOY_FAILED = "DeployFailed";
     public static final String AI_MESSAGE = "ErrorMessage";
     public static final String AI_FQDN = "FQDN";
 
