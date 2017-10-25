@@ -84,8 +84,7 @@ public abstract class KubernetesDeploymentCommandBase<
 
             String action = taskResult.getCommandState().isError() ? Constants.AI_DEPLOY_FAILED : Constants.AI_DEPLOYED;
             AzureACSPlugin.sendEventFor(action, aiType, jobContext.getRun(),
-                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult.getMasterHost()),
-                    Constants.AI_RESOURCE_NAME, AppInsightsUtils.hash(context.getContainerServiceName()));
+                    Constants.AI_FQDN, AppInsightsUtils.hash(taskResult.getMasterHost()));
 
             context.setCommandState(taskResult.getCommandState());
         } catch (Exception e) {
@@ -95,7 +94,6 @@ public abstract class KubernetesDeploymentCommandBase<
             context.logError(e);
             AzureACSPlugin.sendEventFor(Constants.AI_DEPLOY_FAILED, aiType, jobContext.getRun(),
                     Constants.AI_FQDN, AppInsightsUtils.hash(managementFqdn),
-                    Constants.AI_RESOURCE_NAME, AppInsightsUtils.hash(context.getContainerServiceName()),
                     Constants.AI_MESSAGE, e.getMessage());
         }
     }

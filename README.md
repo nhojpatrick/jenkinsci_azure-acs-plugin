@@ -6,6 +6,8 @@ A Jenkins Plugin to deploy configurations to Azure Container Service (ACS) with 
 * [DC/OS](https://dcos.io/) with [Marathon](https://mesosphere.github.io/marathon/)
 * [Docker Swarm](https://docs.docker.com/engine/swarm/)
 
+It also supports deployments on [Azure Kubernetes Service](https://review.docs.microsoft.com/en-us/azure/aks/tutorial-kubernetes-prepare-app?branch=release-aks).
+
 It provides the following main functionality:
 
 * Integration with ACS. Allow you to select existing ACS clusters and manages the authentication credentials.
@@ -15,7 +17,7 @@ It provides the following main functionality:
 
 ## Pre-requirements
 
-* An ACS cluster with the supported orchestrator
+* An ACS cluster with the supported orchestrator, or an AKS cluster
    * [Azure Container Service with Kubernetes](https://docs.microsoft.com/en-us/azure/container-service/kubernetes/)
    * [Azure Container Service with DC/OS and Swarm](https://docs.microsoft.com/en-us/azure/container-service/dcos-swarm/)
 * A Azure service principal that can be used to manage the ACS cluster
@@ -46,14 +48,14 @@ It provides the following main functionality:
 
 1. Within the Jenkins dashboard, Select a Job then select Configure
 1. Scroll to the "Add post-build action" drop down.  
-1. Select "Deploy to Azure Container Service" 
+1. Select "Deploy to Azure Container Service / Azure Kubernetes Service"
 1. Select the service principal from "Azure Credentials" dropdown. If no credentials are configured, create one.
 1. All resource group names will be loaded into the "Resource Group" dropdown. Select the one containing
    your ACS cluster.
 1. All the container service available in the selected resource group will be loaded into the "Container 
    Service" dropdown. Select your target ACS cluster. (It's suggested that we use a standalone resource group
    to manage an ACS cluster, and do not add other resources or ACS clusters into the resource group.)
-1. Select the "Master Node SSH Credentials". This should be the credentials of type "SSH Username with
+1. Select the "Master Node SSH Credentials" if you are deploying to ACS. This should be the credentials of type "SSH Username with
    private key", where username is the login name you specified when you create the ACS cluster (`azureuser`
    by default), and private key is the one matching the public key you specified on the ACS cluster creation
    (by default that may be `$HOME/.ssh/id_rsa` on Linux and `%USERPROFILE%\.ssh\id_rsa` on Windows).
@@ -169,6 +171,22 @@ acsDeploy(azureCredentialsId: '<azure-credential-id>',
           // DC/OS Marathon
           dcosDockerCredentialsPath: '<dcos-credentials-path>',
           
+          containerRegistryCredentials: [
+              [credentialsId: '<credentials-id>', url: '<docker-registry-url>']
+          ])
+```
+
+The pipeline configuration for Azure Kubernetes deployment is similar to the Kubernetes deployment in ACS.
+The `<acs-type>` should be `AKS` and `sshCredentialsId` should be omitted.
+
+```groovy
+acsDeploy(azureCredentialsId: '<azure-credential-id>',
+          resourceGroupName: '<resource-group-name>',
+          containerService: '<aks-name> | AKS',
+          configFilePaths: '<configuration-file-paths>',
+          enableConfigSubstitution: true,
+          secretName: '<secret-name>',
+          secretNamespace: '<secret-namespace>',
           containerRegistryCredentials: [
               [credentialsId: '<credentials-id>', url: '<docker-registry-url>']
           ])
