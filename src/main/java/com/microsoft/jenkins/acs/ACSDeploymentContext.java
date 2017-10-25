@@ -18,8 +18,10 @@ import com.microsoft.azure.PagedList;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
+import com.microsoft.azure.management.resources.GenericResource;
 import com.microsoft.azure.management.resources.ResourceGroup;
 import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.jenkins.acs.commands.AKSDeploymentCommand;
 import com.microsoft.jenkins.acs.commands.DeploymentChoiceCommand;
 import com.microsoft.jenkins.acs.commands.EnablePortCommand;
 import com.microsoft.jenkins.acs.commands.GetContainerServiceInfoCommand;
@@ -73,7 +75,8 @@ public class ACSDeploymentContext extends BaseCommandContext
         MarathonDeploymentCommand.IMarathonDeploymentCommandData,
         KubernetesDeploymentCommand.IKubernetesDeploymentCommandData,
         SwarmDeploymentCommand.ISwarmDeploymentCommandData,
-        DeploymentChoiceCommand.IDeploymentChoiceCommandData {
+        DeploymentChoiceCommand.IDeploymentChoiceCommandData,
+        AKSDeploymentCommand.IAKSDeploymentCommandData {
 
     private final String azureCredentialsId;
     private final String resourceGroupName;
@@ -209,6 +212,12 @@ public class ACSDeploymentContext extends BaseCommandContext
         }
 
         return orchestratorType;
+    }
+
+    @Override
+    public String getContainerServiceType() {
+        String type = getOrchestratorType(containerService);
+        return type;
     }
 
     public String getContainerService() {
@@ -353,6 +362,7 @@ public class ACSDeploymentContext extends BaseCommandContext
         CommandService commandService = CommandService.builder()
                 .withTransition(GetContainerServiceInfoCommand.class, DeploymentChoiceCommand.class)
                 .withSingleCommand(KubernetesDeploymentCommand.class)
+                .withSingleCommand(AKSDeploymentCommand.class)
                 .withTransition(MarathonDeploymentCommand.class, EnablePortCommand.class)
                 .withTransition(SwarmDeploymentCommand.class, EnablePortCommand.class)
                 .withStartCommand(GetContainerServiceInfoCommand.class)
@@ -383,7 +393,7 @@ public class ACSDeploymentContext extends BaseCommandContext
 
     public static String getOrchestratorType(String containerService) {
         if (StringUtils.isBlank(containerService)) {
-            throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
+            throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankContainerServiceType());
         }
         String[] parts = containerService.split("\\|");
         if (parts.length == 2) {
@@ -392,7 +402,7 @@ public class ACSDeploymentContext extends BaseCommandContext
                 return type;
             }
         }
-        throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankOrchestratorType());
+        throw new IllegalArgumentException(Messages.ACSDeploymentContext_blankContainerServiceType());
     }
 
     @VisibleForTesting
@@ -446,12 +456,18 @@ public class ACSDeploymentContext extends BaseCommandContext
         if (StringUtils.isBlank(containerService) || Constants.INVALID_OPTION.equals(containerService)) {
             return Messages.ACSDeploymentContext_missingContainerServiceName();
         }
-        if (StringUtils.isBlank(sshCredentialsId) || credentailsFinder.getSshCredentials(sshCredentialsId) == null) {
-            return Messages.ACSDeploymentContext_missingSSHCredentials();
-        }
 
         try {
             final String orchestratorTypeName = getOrchestratorType(containerService);
+            if (Constants.AKS.equals(orchestratorTypeName)) {
+                return null;
+            }
+
+            if (StringUtils.isBlank(sshCredentialsId)
+                    || credentailsFinder.getSshCredentials(sshCredentialsId) == null) {
+                return Messages.ACSDeploymentContext_missingSSHCredentials();
+            }
+
             ContainerServiceOchestratorTypes orchestratorType =
                     ContainerServiceOchestratorTypes.fromString(orchestratorTypeName);
 
@@ -459,7 +475,7 @@ public class ACSDeploymentContext extends BaseCommandContext
                 return Messages.ACSDeploymentContext_orchestratorNotSupported(orchestratorTypeName);
             }
         } catch (IllegalArgumentException e) {
-            return e.getMessage();
+            return Messages.ACSDeploymentContext_validationError(e.getMessage());
         }
         return null;
     }
@@ -494,30 +510,44 @@ public class ACSDeploymentContext extends BaseCommandContext
                     return FormValidation.error(Messages.ACSDeploymentContext_resourceGroupNotFound());
                 }
 
-                ContainerService container = azureClient
-                        .containerServices()
-                        .getByResourceGroup(resourceGroupName, getContainerServiceName(containerService));
-                if (container == null) {
-                    return FormValidation.error(Messages.ACSDeploymentContext_containerServiceNotFound());
-                }
-
-                if (!container.orchestratorType().toString().equalsIgnoreCase(getOrchestratorType(containerService))) {
-                    return FormValidation.error(Messages.ACSDeploymentContext_containerServiceTypeMissMatch());
-                }
-
-                try {
-                    SSHClient sshClient = new SSHClient(
-                            container.masterFqdn(),
-                            Constants.sshPort(container.orchestratorType()),
-                            getSshCredentials(sshCredentialsId));
-                    try (SSHClient ignore = sshClient.connect()) {
-                        sshClient.execRemote("ls");
+                String containerServiceType = getOrchestratorType(containerService);
+                String containerServiceName = getContainerServiceName(containerService);
+                if (Constants.AKS.equals(containerServiceType)) {
+                    GenericResource resource =
+                            azureClient.genericResources().get(
+                                    resourceGroupName,
+                                    Constants.AKS_PROVIDER,
+                                    Constants.AKS_RESOURCE_TYPE,
+                                    containerServiceName);
+                    if (resource == null) {
+                        return FormValidation.error(Messages.ACSDeploymentContext_containerServiceNotFound());
                     }
-                } catch (Exception e) {
-                    return FormValidation.error(Messages.ACSDeploymentContext_sshFailure(e.getMessage()));
-                }
+                    return FormValidation.ok(Messages.ACSDeploymentContext_validationSuccess(Messages.AKS()));
+                } else {
+                    ContainerService container = azureClient
+                            .containerServices()
+                            .getByResourceGroup(resourceGroupName, containerServiceName);
+                    if (container == null) {
+                        return FormValidation.error(Messages.ACSDeploymentContext_containerServiceNotFound());
+                    }
 
-                return FormValidation.ok(Messages.ACSDeploymentContext_validationSuccess());
+                    if (!container.orchestratorType().toString().equalsIgnoreCase(containerServiceType)) {
+                        return FormValidation.error(Messages.ACSDeploymentContext_containerServiceTypeMissMatch());
+                    }
+
+                    try {
+                        SSHClient sshClient = new SSHClient(
+                                container.masterFqdn(),
+                                Constants.sshPort(container.orchestratorType()),
+                                getSshCredentials(sshCredentialsId));
+                        try (SSHClient ignore = sshClient.connect()) {
+                            sshClient.execRemote("ls");
+                        }
+                    } catch (Exception e) {
+                        return FormValidation.error(Messages.ACSDeploymentContext_sshFailure(e.getMessage()));
+                    }
+                    return FormValidation.ok(Messages.ACSDeploymentContext_validationSuccess(Messages.ACS()));
+                }
             } catch (Exception e) {
                 return FormValidation.error(Messages.ACSDeploymentContext_validationError(e.getMessage()));
             }
@@ -591,6 +621,17 @@ public class ACSDeploymentContext extends BaseCommandContext
                     if (Constants.SUPPORTED_ORCHESTRATOR.contains(orchestratorType)) {
                         String value = String.format("%s | %s",
                                 containerService.name(), containerService.orchestratorType());
+                        model.add(value);
+                    }
+                }
+
+                PagedList<GenericResource> resources =
+                        azureClient.genericResources().listByResourceGroup(resourceGroupName);
+                for (GenericResource resource : resources) {
+                    if (Constants.AKS_PROVIDER.equals(resource.resourceProviderNamespace())
+                            && Constants.AKS_RESOURCE_TYPE.equals(resource.resourceType())) {
+                        String value = String.format("%s | %s",
+                                resource.name(), Constants.AKS);
                         model.add(value);
                     }
                 }

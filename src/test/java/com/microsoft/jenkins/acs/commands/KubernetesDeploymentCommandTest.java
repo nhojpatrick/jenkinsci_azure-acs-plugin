@@ -23,22 +23,23 @@ import static org.mockito.Mockito.when;
 public class KubernetesDeploymentCommandTest {
     @Test
     public void testGetMasterHost() {
-        KubernetesDeploymentCommand command = new KubernetesDeploymentCommand();
+        KubernetesDeploymentCommand.KubernetesDeployWorker worker =
+                new KubernetesDeploymentCommand.KubernetesDeployWorker();
 
-        assertEquals("Unknown", command.getMasterHost(null));
+        assertEquals("Unknown", worker.getMasterHost(null));
 
         KubernetesClientWrapper wrapper = mock(KubernetesClientWrapper.class);
-        assertEquals("Unknown", command.getMasterHost(wrapper));
+        assertEquals("Unknown", worker.getMasterHost(wrapper));
 
         KubernetesClient client = mock(KubernetesClient.class);
         when(wrapper.getClient()).thenReturn(client);
-        assertEquals("Unknown", command.getMasterHost(wrapper));
+        assertEquals("Unknown", worker.getMasterHost(wrapper));
 
         URL url = mock(URL.class);
         when(client.getMasterUrl()).thenReturn(url);
-        assertNull(command.getMasterHost(wrapper));
+        assertNull(worker.getMasterHost(wrapper));
 
         when(url.getHost()).thenReturn("example.com");
-        assertEquals("example.com", command.getMasterHost(wrapper));
+        assertEquals("example.com", worker.getMasterHost(wrapper));
     }
 }

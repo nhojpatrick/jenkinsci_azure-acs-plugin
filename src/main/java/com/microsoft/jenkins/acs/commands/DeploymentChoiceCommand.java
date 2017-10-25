@@ -19,39 +19,40 @@ import com.microsoft.jenkins.azurecommons.command.INextCommandAware;
  */
 public class DeploymentChoiceCommand
         implements ICommand<DeploymentChoiceCommand.IDeploymentChoiceCommandData>, INextCommandAware {
-    private ContainerServiceOchestratorTypes orchestratorType;
+    private String containerServiceType;
 
     @Override
     public void execute(IDeploymentChoiceCommandData context) {
-        ContainerServiceOchestratorTypes type = context.getOrchestratorType();
+        String type = context.getContainerServiceType();
         if (type == null) {
-            context.logError(Messages.DeploymentChoiceCommand_orchestratorNotFound());
+            context.logError(Messages.DeploymentChoiceCommand_containerServiceTypeNotFound());
             return;
         }
-        if (!Constants.SUPPORTED_ORCHESTRATOR.contains(type)) {
+        if (!Constants.AKS.equals(type) && !Constants.SUPPORTED_ORCHESTRATOR_NAMES.contains(type)) {
             context.logError(Messages.DeploymentChoiceCommand_orchestratorNotSupported(type));
             return;
         }
-        this.orchestratorType = type;
+        this.containerServiceType = type;
         context.setCommandState(CommandState.Success);
     }
 
     @Override
     public Class nextCommand() {
-        switch (orchestratorType) {
-            case KUBERNETES:
-                return KubernetesDeploymentCommand.class;
-            case DCOS:
-                return MarathonDeploymentCommand.class;
-            case SWARM:
-                return SwarmDeploymentCommand.class;
-            default:
-                throw new IllegalStateException(
-                        Messages.DeploymentChoiceCommand_orchestratorNotSupported(orchestratorType));
+        if (ContainerServiceOchestratorTypes.KUBERNETES.toString().equals(containerServiceType)) {
+            return KubernetesDeploymentCommand.class;
+        } else if (ContainerServiceOchestratorTypes.DCOS.toString().equals(containerServiceType)) {
+            return MarathonDeploymentCommand.class;
+        } else if (ContainerServiceOchestratorTypes.SWARM.toString().equals(containerServiceType)) {
+            return SwarmDeploymentCommand.class;
+        } else if (Constants.AKS.equals(containerServiceType)) {
+            return AKSDeploymentCommand.class;
         }
+
+        throw new IllegalStateException(
+                Messages.DeploymentChoiceCommand_orchestratorNotSupported(containerServiceType));
     }
 
     public interface IDeploymentChoiceCommandData extends IBaseCommandData {
-        ContainerServiceOchestratorTypes getOrchestratorType();
+        String getContainerServiceType();
     }
 }

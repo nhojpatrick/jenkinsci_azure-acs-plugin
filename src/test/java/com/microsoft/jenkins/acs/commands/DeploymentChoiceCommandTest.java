@@ -8,6 +8,7 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.ACSDeploymentContext;
+import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
@@ -36,7 +37,7 @@ public class DeploymentChoiceCommandTest {
     @Test
     public void testNotSupportedType() {
         DeploymentChoiceCommand.IDeploymentChoiceCommandData context = prepareContext(
-                ContainerServiceOchestratorTypes.CUSTOM);
+                ContainerServiceOchestratorTypes.CUSTOM.toString());
         new DeploymentChoiceCommand().execute(context);
 
         verify(context, times(1)).setCommandState(CommandState.HasError);
@@ -44,24 +45,29 @@ public class DeploymentChoiceCommandTest {
 
     @Test
     public void testKubernetes() {
-        testChoiceForType(ContainerServiceOchestratorTypes.KUBERNETES, KubernetesDeploymentCommand.class);
+        testChoiceForType(ContainerServiceOchestratorTypes.KUBERNETES.toString(), KubernetesDeploymentCommand.class);
     }
 
     @Test
     public void testDcos() {
-        testChoiceForType(ContainerServiceOchestratorTypes.DCOS, MarathonDeploymentCommand.class);
+        testChoiceForType(ContainerServiceOchestratorTypes.DCOS.toString(), MarathonDeploymentCommand.class);
     }
 
     @Test
     public void testSwarm() {
-        testChoiceForType(ContainerServiceOchestratorTypes.SWARM, SwarmDeploymentCommand.class);
+        testChoiceForType(ContainerServiceOchestratorTypes.SWARM.toString(), SwarmDeploymentCommand.class);
+    }
+
+    @Test
+    public void testAKS() {
+        testChoiceForType(Constants.AKS, AKSDeploymentCommand.class);
     }
 
     private void testChoiceForType(
-            final ContainerServiceOchestratorTypes orchestratorType,
+            final String containerServiceType,
             final Class clazz) {
         DeploymentChoiceCommand.IDeploymentChoiceCommandData context = prepareContext(
-                orchestratorType);
+                containerServiceType);
         DeploymentChoiceCommand command = new DeploymentChoiceCommand();
         command.execute(context);
 
@@ -71,9 +77,9 @@ public class DeploymentChoiceCommandTest {
     }
 
     private DeploymentChoiceCommand.IDeploymentChoiceCommandData prepareContext(
-            final ContainerServiceOchestratorTypes orchestratorType) {
+            final String containerServiceType) {
         final DeploymentChoiceCommand.IDeploymentChoiceCommandData context = mock(ACSDeploymentContext.class);
-        doReturn(orchestratorType).when(context).getOrchestratorType();
+        doReturn(containerServiceType).when(context).getContainerServiceType();
 
         doAnswer(new Answer() {
             @Override

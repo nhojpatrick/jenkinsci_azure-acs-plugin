@@ -68,5 +68,15 @@ public abstract class DeploymentConfig implements Serializable {
                             Messages.ACSDeploymentContext_orchestratorNotSupported(type));
             }
         }
+
+        public DeploymentConfig buildForAKS(
+                FilePath workspace, EnvVars envVars) throws IOException, InterruptedException {
+            final String expandedConfigFilePaths = envVars.expand(configFilePaths);
+            final FilePath[] configFiles = workspace.list(expandedConfigFilePaths);
+            if (configFiles.length == 0) {
+                throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(configFilePaths));
+            }
+            return new KubernetesDeploymentConfig(configFiles);
+        }
     }
 }
