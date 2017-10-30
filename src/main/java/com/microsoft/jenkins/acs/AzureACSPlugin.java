@@ -6,7 +6,6 @@
 
 package com.microsoft.jenkins.acs;
 
-import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsClientFactory;
 import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
@@ -45,16 +44,17 @@ public class AzureACSPlugin extends Plugin {
                 .sendEvent(item, action, properties, false);
     }
 
-    public static String getItemNameFromOrchestratorType(ContainerServiceOchestratorTypes type) {
-        switch (type) {
-            case KUBERNETES:
-                return Constants.AI_KUBERNATES;
-            case DCOS:
-                return Constants.AI_DCOS;
-            case SWARM:
-                return Constants.AI_SWARM;
-            default:
-                return Constants.AI_CUSTOM;
+    public static String normalizeContainerSerivceType(String type) {
+        if (Constants.AI_KUBERNATES.equalsIgnoreCase(type)) {
+            return Constants.AI_KUBERNATES;
+        } else if (Constants.AI_DCOS.equalsIgnoreCase(type)) {
+            return Constants.AI_DCOS;
+        } else if (Constants.AI_SWARM.equalsIgnoreCase(type)) {
+            return Constants.AI_SWARM;
+        } else if (Constants.AI_AKS.equalsIgnoreCase(type)) {
+            return Constants.AI_AKS;
+        } else {
+            return Constants.AI_CUSTOM;
         }
     }
 

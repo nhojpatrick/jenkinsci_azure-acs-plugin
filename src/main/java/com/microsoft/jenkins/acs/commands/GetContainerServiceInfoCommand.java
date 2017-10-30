@@ -33,8 +33,6 @@ public class GetContainerServiceInfoCommand
 
     @Override
     public void execute(IGetContainerServiceInfoCommandData context) {
-        context.logStatus(Messages.GetContainserServiceInfoCommand_getFQDN());
-
         JobContext jobContext = context.getJobContext();
         final FilePath workspace = jobContext.getWorkspace();
         final TaskListener taskListener = jobContext.getTaskListener();
@@ -43,16 +41,25 @@ public class GetContainerServiceInfoCommand
                 AzureCredentials.getServicePrincipal(azureCredentialsId);
         final String resourceGroupName = context.getResourceGroupName();
         final String containerServiceName = context.getContainerServiceName();
+        final String containerServiceType = context.getContainerServiceType();
         final ContainerServiceOchestratorTypes configuredType = context.getOrchestratorType();
 
+        final String aiType = AzureACSPlugin.normalizeContainerSerivceType(containerServiceType);
+
         AzureACSPlugin.sendEventFor(Constants.AI_START_DEPLOY,
-                AzureACSPlugin.getItemNameFromOrchestratorType(context.getOrchestratorType()),
+                aiType,
                 jobContext.getRun(),
                 "Subscription", AppInsightsUtils.hash(
                         servicePrincipal == null ? null : servicePrincipal.getSubscriptionId()),
                 "ResourceGroup", AppInsightsUtils.hash(resourceGroupName),
                 "ContainerServiceName", AppInsightsUtils.hash(containerServiceName));
 
+        if (Constants.AKS.equals(containerServiceType)) {
+            context.setCommandState(CommandState.Success);
+            return;
+        }
+
+        context.logStatus(Messages.GetContainserServiceInfoCommand_getFQDN());
         try {
             TaskResult taskResult = workspace.act(new MasterToSlaveCallable<TaskResult, RuntimeException>() {
                 @Override
@@ -76,7 +83,7 @@ public class GetContainerServiceInfoCommand
             }
             context.logError(ex);
             AzureACSPlugin.sendEventFor("GetInfoFailure",
-                    AzureACSPlugin.getItemNameFromOrchestratorType(context.getOrchestratorType()),
+                    aiType,
                     jobContext.getRun(),
                     Constants.AI_MESSAGE, ex.getMessage());
         }
@@ -163,5 +170,7 @@ public class GetContainerServiceInfoCommand
         void setMgmtFQDN(String mgmtFQDN);
 
         ContainerServiceOchestratorTypes getOrchestratorType();
+
+        String getContainerServiceType();
     }
 }

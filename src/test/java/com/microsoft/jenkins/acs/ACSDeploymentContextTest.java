@@ -51,21 +51,21 @@ public class ACSDeploymentContextTest {
         assertEquals("DCOS", ACSDeploymentContext.getOrchestratorType("test-container|DCOS"));
         assertEquals("Kubernetes", ACSDeploymentContext.getOrchestratorType("test-container | Kubernetes"));
 
-        expectException(IllegalArgumentException.class, Matchers.is("Container service orchestrator type is not specified"), new ACSTestHelper.ExceptionRunnable() {
+        expectException(IllegalArgumentException.class, Matchers.is("Container service type is not specified"), new ACSTestHelper.ExceptionRunnable() {
             @Override
             public void run() throws Exception {
                 ACSDeploymentContext.getOrchestratorType("  ");
             }
         });
 
-        expectException(IllegalArgumentException.class, Matchers.is("Container service orchestrator type is not specified"), new ACSTestHelper.ExceptionRunnable() {
+        expectException(IllegalArgumentException.class, Matchers.is("Container service type is not specified"), new ACSTestHelper.ExceptionRunnable() {
             @Override
             public void run() throws Exception {
                 ACSDeploymentContext.getOrchestratorType("test-container");
             }
         });
 
-        expectException(IllegalArgumentException.class, Matchers.is("Container service orchestrator type is not specified"), new ACSTestHelper.ExceptionRunnable() {
+        expectException(IllegalArgumentException.class, Matchers.is("Container service type is not specified"), new ACSTestHelper.ExceptionRunnable() {
             @Override
             public void run() throws Exception {
                 ACSDeploymentContext.getOrchestratorType("test-container|");
@@ -144,18 +144,18 @@ public class ACSDeploymentContextTest {
         assertEquals("ERROR: Azure container service name is not configured",
                 validate(azureCredentialsId, "rg", "*", "", builder.credentailsFinder));
 
-        assertEquals("ERROR: SSH credentials is not configured",
+        assertEquals("ERROR: Container service type is not specified",
                 validate(azureCredentialsId, "rg", "cs", "", builder.credentailsFinder));
         builder = new ValidatorBuilder(azureCredentialsId).withoutSshCredentials();
         assertEquals("ERROR: SSH credentials is not configured",
-                validate(azureCredentialsId, "rg", "cs", "ssh", builder.credentailsFinder));
+                validate(azureCredentialsId, "rg", "cs|Custom", "ssh", builder.credentailsFinder));
 
         builder = new ValidatorBuilder(azureCredentialsId);
-        assertEquals("Container service orchestrator type is not specified",
+        assertEquals("ERROR: Container service type is not specified",
                 validate(azureCredentialsId, "rg", "cs", "ssh", builder.credentailsFinder));
-        assertEquals("ERROR: Container Service orchestrator type not-supported is not supported",
+        assertEquals("ERROR: Container Service type not-supported is not supported",
                 validate(azureCredentialsId, "rg", "cs|not-supported", "ssh", builder.credentailsFinder));
-        assertEquals("ERROR: Container Service orchestrator type Custom is not supported",
+        assertEquals("ERROR: Container Service type Custom is not supported",
                 validate(azureCredentialsId, "rg", "cs|Custom", "ssh", builder.credentailsFinder));
     }
 

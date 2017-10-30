@@ -74,6 +74,16 @@ public final class Constants {
             ContainerServiceOchestratorTypes.SWARM
     ));
 
+    public static final Set<String> SUPPORTED_ORCHESTRATOR_NAMES = new HashSet<>(Arrays.asList(
+            ContainerServiceOchestratorTypes.KUBERNETES.toString(),
+            ContainerServiceOchestratorTypes.DCOS.toString(),
+            ContainerServiceOchestratorTypes.SWARM.toString()
+    ));
+
+    public static final String AKS = "AKS";
+    public static final String AKS_PROVIDER = "Microsoft.ContainerService";
+    public static final String AKS_RESOURCE_TYPE = "managedClusters";
+
     public static final int DEFAULT_SSH_PORT = 22;
     public static final int DCOS_SSH_PORT = 2200;
     public static final int KUBERNETES_SSH_PORT = 22;
@@ -87,6 +97,7 @@ public final class Constants {
     public static final String AI_KUBERNATES = "Kubernates";
     public static final String AI_DCOS = "DCOS";
     public static final String AI_CUSTOM = "Custom";
+    public static final String AI_AKS = "AKS";
     public static final String AI_RUN = "Run";
     public static final String AI_ORCHESTRATOR = "Orchestrator";
     public static final String AI_START_DEPLOY = "StartDeploy";
@@ -94,6 +105,7 @@ public final class Constants {
     public static final String AI_DEPLOY_FAILED = "DeployFailed";
     public static final String AI_MESSAGE = "ErrorMessage";
     public static final String AI_FQDN = "FQDN";
+    public static final String AI_RESOURCE_NAME = "ResourceName";
 
     public static int sshPort(ContainerServiceOchestratorTypes type) {
         switch (type) {
