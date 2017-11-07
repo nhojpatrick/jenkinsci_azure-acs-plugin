@@ -1,7 +1,7 @@
 # Azure Container Service Plugin Changelog
 
 ## Version 0.1.4, 2017-11-07
-* Fix master node SSH password login on Jenkins slave
+* Support for Azure Kubernetes Service (AKS)
 * Add Third Party Notice
 
 ## Version 0.1.3, 2017-10-18
