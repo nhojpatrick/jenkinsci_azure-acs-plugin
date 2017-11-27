@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.1.5, 2017-11-27
+* Fix typo in AI reporting
+
 ## Version 0.1.4, 2017-11-07
 * Support for Azure Kubernetes Service (AKS)
 * Add Third Party Notice
