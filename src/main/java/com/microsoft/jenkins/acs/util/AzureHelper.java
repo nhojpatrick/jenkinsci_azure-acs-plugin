@@ -6,48 +6,30 @@
 
 package com.microsoft.jenkins.acs.util;
 
-import com.microsoft.azure.credentials.AzureTokenCredentials;
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.azure.util.AzureBaseCredentials;
+import com.microsoft.azure.util.AzureCredentialUtil;
 import com.microsoft.jenkins.acs.AzureACSPlugin;
-import com.microsoft.jenkins.acs.Messages;
-import jenkins.model.Jenkins;
-import org.apache.commons.lang.StringUtils;
+import com.microsoft.jenkins.azurecommons.core.AzureClientFactory;
+import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
 
 /**
  * Helper methods on the Azure related constructs.
  */
 public final class AzureHelper {
 
-    public static Azure buildClientFromServicePrincipal(AzureCredentials.ServicePrincipal servicePrincipal) {
-        AzureTokenCredentials credentials = DependencyMigration.buildAzureTokenCredentials(servicePrincipal);
-        return Azure
-                .configure()
-                .withUserAgent(getUserAgent())
-                .withInterceptor(new AzureACSPlugin.AzureTelemetryInterceptor())
-                .authenticate(credentials)
-                .withSubscription(servicePrincipal.getSubscriptionId());
-    }
-
-    public static Azure buildClientFromCredentialsId(String azureCredentialsId) {
-        AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
-        if (StringUtils.isEmpty(servicePrincipal.getClientId())) {
-            throw new IllegalArgumentException(Messages.AzureHelper_servicePrincipalNotFound(azureCredentialsId));
-        }
-
-        return buildClientFromServicePrincipal(servicePrincipal);
-    }
-
-    private static String getUserAgent() {
-        String version = "local";
-        String instanceId = "local";
-        try {
-            version = AzureHelper.class.getPackage().getImplementationVersion();
-            instanceId = Jenkins.getActiveInstance().getLegacyInstanceId();
-        } catch (Exception e) {
-        }
-
-        return Constants.PLUGIN_NAME + "/" + version + "/" + instanceId;
+    public static Azure buildClient(String credentialId) {
+        AzureBaseCredentials credential = AzureCredentialUtil.getCredential2(credentialId);
+        TokenCredentialData token = TokenCredentialData.deserialize(credential.serializeToTokenData());
+        return AzureClientFactory.getClient(token, new AzureClientFactory.Configurer() {
+            @Override
+            public Azure.Configurable configure(Azure.Configurable configurable) {
+                return configurable
+                        .withInterceptor(new AzureACSPlugin.AzureTelemetryInterceptor())
+                        .withUserAgent(AzureClientFactory.getUserAgent(Constants.PLUGIN_NAME,
+                                AzureHelper.class.getPackage().getImplementationVersion()));
+            }
+        });
     }
 
     private AzureHelper() {

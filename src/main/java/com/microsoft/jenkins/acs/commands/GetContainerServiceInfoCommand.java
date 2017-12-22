@@ -9,8 +9,7 @@ package com.microsoft.jenkins.acs.commands;
 import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.ContainerService;
-import com.microsoft.azure.management.compute.ContainerServiceOchestratorTypes;
-import com.microsoft.azure.util.AzureCredentials;
+import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
 import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.AzureHelper;
@@ -36,21 +35,19 @@ public class GetContainerServiceInfoCommand
         JobContext jobContext = context.getJobContext();
         final FilePath workspace = jobContext.getWorkspace();
         final TaskListener taskListener = jobContext.getTaskListener();
-        String azureCredentialsId = context.getAzureCredentialsId();
-        final AzureCredentials.ServicePrincipal servicePrincipal =
-                AzureCredentials.getServicePrincipal(azureCredentialsId);
+        final String azureCredentialsId = context.getAzureCredentialsId();
         final String resourceGroupName = context.getResourceGroupName();
         final String containerServiceName = context.getContainerServiceName();
         final String containerServiceType = context.getContainerServiceType();
-        final ContainerServiceOchestratorTypes configuredType = context.getOrchestratorType();
+        final ContainerServiceOrchestratorTypes configuredType = context.getOrchestratorType();
 
         final String aiType = AzureACSPlugin.normalizeContainerSerivceType(containerServiceType);
 
+        Azure azureClient = AzureHelper.buildClient(azureCredentialsId);
         AzureACSPlugin.sendEventFor(Constants.AI_START_DEPLOY,
                 aiType,
                 jobContext.getRun(),
-                "Subscription", AppInsightsUtils.hash(
-                        servicePrincipal == null ? null : servicePrincipal.getSubscriptionId()),
+                "Subscription", AppInsightsUtils.hash(azureClient.subscriptionId()),
                 "ResourceGroup", AppInsightsUtils.hash(resourceGroupName),
                 "ContainerServiceName", AppInsightsUtils.hash(containerServiceName));
 
@@ -66,7 +63,7 @@ public class GetContainerServiceInfoCommand
                 public TaskResult call() throws RuntimeException {
                     PrintStream logger = taskListener.getLogger();
 
-                    Azure azureClient = AzureHelper.buildClientFromServicePrincipal(servicePrincipal);
+                    Azure azureClient = AzureHelper.buildClient(azureCredentialsId);
                     return getAcsInfo(azureClient, resourceGroupName, containerServiceName, configuredType, logger);
                 }
             });
@@ -94,7 +91,7 @@ public class GetContainerServiceInfoCommand
             Azure azureClient,
             String resourceGroupName,
             String containerServiceName,
-            ContainerServiceOchestratorTypes configuredType,
+            ContainerServiceOrchestratorTypes configuredType,
             PrintStream logger) {
         TaskResult result = new TaskResult();
 
@@ -110,7 +107,7 @@ public class GetContainerServiceInfoCommand
             return result;
         }
 
-        ContainerServiceOchestratorTypes orchestratorType = containerService.orchestratorType();
+        ContainerServiceOrchestratorTypes orchestratorType = containerService.orchestratorType();
         logger.println(Messages.GetContainserServiceInfoCommand_orchestratorType(orchestratorType));
         result.orchestratorType = orchestratorType;
 
@@ -139,7 +136,7 @@ public class GetContainerServiceInfoCommand
         private static final long serialVersionUID = 1L;
 
         private CommandState commandState = CommandState.Unknown;
-        private ContainerServiceOchestratorTypes orchestratorType;
+        private ContainerServiceOrchestratorTypes orchestratorType;
         private String fqdn;
         private String adminUsername;
 
@@ -147,7 +144,7 @@ public class GetContainerServiceInfoCommand
             return commandState;
         }
 
-        public ContainerServiceOchestratorTypes getOrchestratorType() {
+        public ContainerServiceOrchestratorTypes getOrchestratorType() {
             return orchestratorType;
         }
 
@@ -169,7 +166,7 @@ public class GetContainerServiceInfoCommand
 
         void setMgmtFQDN(String mgmtFQDN);
 
-        ContainerServiceOchestratorTypes getOrchestratorType();
+        ContainerServiceOrchestratorTypes getOrchestratorType();
 
         String getContainerServiceType();
     }

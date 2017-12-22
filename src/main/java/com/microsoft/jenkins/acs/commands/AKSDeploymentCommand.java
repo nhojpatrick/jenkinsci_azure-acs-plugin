@@ -9,7 +9,6 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.resources.GenericResource;
 import com.microsoft.azure.management.resources.fluentcore.arm.ResourceUtils;
-import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
@@ -28,7 +27,7 @@ public class AKSDeploymentCommand
         final String azureCredentialsId = context.getAzureCredentialsId();
 
         AKSDeployWorker deployer = new AKSDeployWorker();
-        deployer.setServicePrincipal(AzureCredentials.getServicePrincipal(azureCredentialsId));
+        deployer.setCredentialId(azureCredentialsId);
         deployer.setResourceGroupName(context.getResourceGroupName());
         deployer.setContainerServiceName(context.getContainerServiceName());
 
@@ -36,7 +35,7 @@ public class AKSDeploymentCommand
     }
 
     static class AKSDeployWorker extends KubernetesDeployWorker {
-        private AzureCredentials.ServicePrincipal servicePrincipal;
+        private String credentialId;
         private String resourceGroupName;
         private String containerServiceName;
 
@@ -48,10 +47,9 @@ public class AKSDeploymentCommand
 
         @Override
         protected void prepareKubeconfig(FilePath kubeconfigFile) throws Exception {
-            AzureCredentials.ServicePrincipal sp = getServicePrincipal();
-            Azure azureClient = AzureHelper.buildClientFromServicePrincipal(sp);
+            Azure azureClient = AzureHelper.buildClient(credentialId);
             String id = ResourceUtils.constructResourceId(
-                    sp.getSubscriptionId(),
+                    azureClient.subscriptionId(),
                     getResourceGroupName(),
                     Constants.AKS_PROVIDER,
                     Constants.AKS_RESOURCE_TYPE,
@@ -76,14 +74,6 @@ public class AKSDeploymentCommand
             }
         }
 
-        public AzureCredentials.ServicePrincipal getServicePrincipal() {
-            return servicePrincipal;
-        }
-
-        public void setServicePrincipal(AzureCredentials.ServicePrincipal servicePrincipal) {
-            this.servicePrincipal = servicePrincipal;
-        }
-
         public String getResourceGroupName() {
             return resourceGroupName;
         }
@@ -98,6 +88,14 @@ public class AKSDeploymentCommand
 
         public void setContainerServiceName(String containerServiceName) {
             this.containerServiceName = containerServiceName;
+        }
+
+        public String getCredentialId() {
+            return credentialId;
+        }
+
+        public void setCredentialId(String credentialId) {
+            this.credentialId = credentialId;
         }
     }
 

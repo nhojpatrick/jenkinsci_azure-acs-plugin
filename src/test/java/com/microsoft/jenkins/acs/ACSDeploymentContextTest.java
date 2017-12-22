@@ -2,6 +2,7 @@ package com.microsoft.jenkins.acs;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
 import com.google.common.collect.ImmutableList;
+import com.microsoft.azure.util.AzureBaseCredentials;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
@@ -128,12 +129,10 @@ public class ACSDeploymentContextTest {
     @Test
     public void testValidate() {
         final String azureCredentialsId = "mock-credentials-id";
-        ValidatorBuilder builder = new ValidatorBuilder(azureCredentialsId).withEmptyServicePrincipal();
+        ValidatorBuilder builder = new ValidatorBuilder(azureCredentialsId);
 
         assertEquals("ERROR: Azure credentials is not configured or found",
-                validate(azureCredentialsId, "", "", "", builder.credentailsFinder));
-
-        builder = new ValidatorBuilder(azureCredentialsId);
+                validate("wrong-id", "", "", "", builder.credentailsFinder));
         assertEquals("ERROR: Azure resource group is not configured",
                 validate(azureCredentialsId, "", "", "", builder.credentailsFinder));
         assertEquals("ERROR: Azure resource group is not configured",
@@ -240,24 +239,16 @@ public class ACSDeploymentContextTest {
     private static class ValidatorBuilder {
         final String azureCredentialsId;
         final ACSDeploymentContext.CredentailsFinder credentailsFinder;
-        final AzureCredentials.ServicePrincipal servicePrincipal;
         final SSHUserPrivateKey sshCredentials;
 
         public ValidatorBuilder(final String azureCredentialsId) {
             this.azureCredentialsId = azureCredentialsId;
             this.credentailsFinder = mock(ACSDeploymentContext.CredentailsFinder.class);
-            this.servicePrincipal = mock(AzureCredentials.ServicePrincipal.class);
             this.sshCredentials = mock(SSHUserPrivateKey.class);
+            AzureBaseCredentials credential = mock(AzureBaseCredentials.class);
 
-            doReturn("mocked-subscription-id").when(this.servicePrincipal).getSubscriptionId();
-            doReturn(servicePrincipal).when(this.credentailsFinder).getServicePrincipal(azureCredentialsId);
-
+            doReturn(credential).when(this.credentailsFinder).getCredential(azureCredentialsId);
             doReturn(sshCredentials).when(this.credentailsFinder).getSshCredentials(any(String.class));
-        }
-
-        ValidatorBuilder withEmptyServicePrincipal() {
-            doReturn("").when(this.servicePrincipal).getSubscriptionId();
-            return this;
         }
 
         ValidatorBuilder withoutSshCredentials() {
