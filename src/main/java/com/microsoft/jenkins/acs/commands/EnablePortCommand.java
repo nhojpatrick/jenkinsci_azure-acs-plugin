@@ -28,6 +28,7 @@ import com.microsoft.jenkins.azurecommons.JobContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.model.TaskListener;
@@ -65,12 +66,13 @@ public class EnablePortCommand implements ICommand<EnablePortCommand.IEnablePort
         final String resourceGroupName = context.getResourceGroupName();
 
         try {
+            final TokenCredentialData token = AzureHelper.getToken(azureCredentialsId);
             CommandState state = workspace.act(new MasterToSlaveCallable<CommandState, Exception>() {
                 @Override
                 public CommandState call() throws Exception {
                     PrintStream logger = taskListener.getLogger();
 
-                    Azure azureClient = AzureHelper.buildClient(azureCredentialsId);
+                    Azure azureClient = AzureHelper.buildClient(token);
 
                     DeploymentConfig config = configFactory.build(orchestratorType, workspace, envVars);
 

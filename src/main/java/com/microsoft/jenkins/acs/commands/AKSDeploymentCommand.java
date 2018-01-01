@@ -13,6 +13,7 @@ import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
+import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
 import hudson.FilePath;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
@@ -24,10 +25,10 @@ public class AKSDeploymentCommand
         extends KubernetesDeploymentCommandBase<AKSDeploymentCommand.IAKSDeploymentCommandData> {
     @Override
     public void execute(IAKSDeploymentCommandData context) {
-        final String azureCredentialsId = context.getAzureCredentialsId();
+        final TokenCredentialData token = AzureHelper.getToken(context.getAzureCredentialsId());
 
         AKSDeployWorker deployer = new AKSDeployWorker();
-        deployer.setCredentialId(azureCredentialsId);
+        deployer.setToken(token);
         deployer.setResourceGroupName(context.getResourceGroupName());
         deployer.setContainerServiceName(context.getContainerServiceName());
 
@@ -35,7 +36,7 @@ public class AKSDeploymentCommand
     }
 
     static class AKSDeployWorker extends KubernetesDeployWorker {
-        private String credentialId;
+        private TokenCredentialData token;
         private String resourceGroupName;
         private String containerServiceName;
 
@@ -47,7 +48,7 @@ public class AKSDeploymentCommand
 
         @Override
         protected void prepareKubeconfig(FilePath kubeconfigFile) throws Exception {
-            Azure azureClient = AzureHelper.buildClient(credentialId);
+            Azure azureClient = AzureHelper.buildClient(token);
             String id = ResourceUtils.constructResourceId(
                     azureClient.subscriptionId(),
                     getResourceGroupName(),
@@ -90,12 +91,12 @@ public class AKSDeploymentCommand
             this.containerServiceName = containerServiceName;
         }
 
-        public String getCredentialId() {
-            return credentialId;
+        public TokenCredentialData getToken() {
+            return token;
         }
 
-        public void setCredentialId(String credentialId) {
-            this.credentialId = credentialId;
+        public void setToken(TokenCredentialData token) {
+            this.token = token;
         }
     }
 

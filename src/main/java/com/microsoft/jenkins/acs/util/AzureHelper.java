@@ -18,9 +18,20 @@ import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
  */
 public final class AzureHelper {
 
-    public static Azure buildClient(String credentialId) {
+    public static TokenCredentialData getToken(String credentialId) {
         AzureBaseCredentials credential = AzureCredentialUtil.getCredential2(credentialId);
-        TokenCredentialData token = TokenCredentialData.deserialize(credential.serializeToTokenData());
+        if (credential == null) {
+            throw new NullPointerException("Can't find credential with id: " + credentialId);
+        }
+        return TokenCredentialData.deserialize(credential.serializeToTokenData());
+    }
+
+    public static Azure buildClient(String credentialId) {
+        TokenCredentialData token = getToken(credentialId);
+        return buildClient(token);
+    }
+
+    public static Azure buildClient(TokenCredentialData token) {
         return AzureClientFactory.getClient(token, new AzureClientFactory.Configurer() {
             @Override
             public Azure.Configurable configure(Azure.Configurable configurable) {

@@ -18,6 +18,7 @@ import com.microsoft.jenkins.azurecommons.JobContext;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
+import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
 import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
 import hudson.FilePath;
 import hudson.model.TaskListener;
@@ -35,7 +36,7 @@ public class GetContainerServiceInfoCommand
         JobContext jobContext = context.getJobContext();
         final FilePath workspace = jobContext.getWorkspace();
         final TaskListener taskListener = jobContext.getTaskListener();
-        final String azureCredentialsId = context.getAzureCredentialsId();
+        final TokenCredentialData token = AzureHelper.getToken(context.getAzureCredentialsId());
         final String resourceGroupName = context.getResourceGroupName();
         final String containerServiceName = context.getContainerServiceName();
         final String containerServiceType = context.getContainerServiceType();
@@ -43,7 +44,7 @@ public class GetContainerServiceInfoCommand
 
         final String aiType = AzureACSPlugin.normalizeContainerSerivceType(containerServiceType);
 
-        Azure azureClient = AzureHelper.buildClient(azureCredentialsId);
+        Azure azureClient = AzureHelper.buildClient(token);
         AzureACSPlugin.sendEventFor(Constants.AI_START_DEPLOY,
                 aiType,
                 jobContext.getRun(),
@@ -63,7 +64,7 @@ public class GetContainerServiceInfoCommand
                 public TaskResult call() throws RuntimeException {
                     PrintStream logger = taskListener.getLogger();
 
-                    Azure azureClient = AzureHelper.buildClient(azureCredentialsId);
+                    Azure azureClient = AzureHelper.buildClient(token);
                     return getAcsInfo(azureClient, resourceGroupName, containerServiceName, configuredType, logger);
                 }
             });
