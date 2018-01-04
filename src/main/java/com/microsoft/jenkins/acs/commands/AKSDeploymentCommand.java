@@ -9,11 +9,11 @@ package com.microsoft.jenkins.acs.commands;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.resources.GenericResource;
 import com.microsoft.azure.management.resources.fluentcore.arm.ResourceUtils;
-import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
 import com.microsoft.jenkins.acs.util.AzureHelper;
 import com.microsoft.jenkins.acs.util.Constants;
 import com.microsoft.jenkins.acs.util.DeployHelper;
+import com.microsoft.jenkins.azurecommons.core.credentials.TokenCredentialData;
 import hudson.FilePath;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
@@ -25,10 +25,10 @@ public class AKSDeploymentCommand
         extends KubernetesDeploymentCommandBase<AKSDeploymentCommand.IAKSDeploymentCommandData> {
     @Override
     public void execute(IAKSDeploymentCommandData context) {
-        final String azureCredentialsId = context.getAzureCredentialsId();
+        final TokenCredentialData token = AzureHelper.getToken(context.getAzureCredentialsId());
 
         AKSDeployWorker deployer = new AKSDeployWorker();
-        deployer.setServicePrincipal(AzureCredentials.getServicePrincipal(azureCredentialsId));
+        deployer.setToken(token);
         deployer.setResourceGroupName(context.getResourceGroupName());
         deployer.setContainerServiceName(context.getContainerServiceName());
 
@@ -36,7 +36,7 @@ public class AKSDeploymentCommand
     }
 
     static class AKSDeployWorker extends KubernetesDeployWorker {
-        private AzureCredentials.ServicePrincipal servicePrincipal;
+        private TokenCredentialData token;
         private String resourceGroupName;
         private String containerServiceName;
 
@@ -48,10 +48,9 @@ public class AKSDeploymentCommand
 
         @Override
         protected void prepareKubeconfig(FilePath kubeconfigFile) throws Exception {
-            AzureCredentials.ServicePrincipal sp = getServicePrincipal();
-            Azure azureClient = AzureHelper.buildClientFromServicePrincipal(sp);
+            Azure azureClient = AzureHelper.buildClient(token);
             String id = ResourceUtils.constructResourceId(
-                    sp.getSubscriptionId(),
+                    azureClient.subscriptionId(),
                     getResourceGroupName(),
                     Constants.AKS_PROVIDER,
                     Constants.AKS_RESOURCE_TYPE,
@@ -76,14 +75,6 @@ public class AKSDeploymentCommand
             }
         }
 
-        public AzureCredentials.ServicePrincipal getServicePrincipal() {
-            return servicePrincipal;
-        }
-
-        public void setServicePrincipal(AzureCredentials.ServicePrincipal servicePrincipal) {
-            this.servicePrincipal = servicePrincipal;
-        }
-
         public String getResourceGroupName() {
             return resourceGroupName;
         }
@@ -98,6 +89,14 @@ public class AKSDeploymentCommand
 
         public void setContainerServiceName(String containerServiceName) {
             this.containerServiceName = containerServiceName;
+        }
+
+        public TokenCredentialData getToken() {
+            return token;
+        }
+
+        public void setToken(TokenCredentialData token) {
+            this.token = token;
         }
     }
 
