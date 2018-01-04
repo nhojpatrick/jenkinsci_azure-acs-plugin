@@ -21,7 +21,7 @@ public final class AzureHelper {
     public static TokenCredentialData getToken(String credentialId) {
         AzureBaseCredentials credential = AzureCredentialUtil.getCredential2(credentialId);
         if (credential == null) {
-            throw new NullPointerException("Can't find credential with id: " + credentialId);
+            throw new IllegalStateException("Can't find credential with id: " + credentialId);
         }
         return TokenCredentialData.deserialize(credential.serializeToTokenData());
     }
