@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.2.0, 2018-01-05
+* Support MSI
+
 ## Version 0.1.5, 2017-11-27
 * Fix typo in AI reporting
 
