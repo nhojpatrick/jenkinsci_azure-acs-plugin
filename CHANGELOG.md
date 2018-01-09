@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.2.1, 2018-01-09
+* Fix AKS deployment after AKS resource API change ([#10](https://github.com/jenkinsci/azure-acs-plugin/issues/10))
+
 ## Version 0.2.0, 2018-01-05
 * Support MSI
 
