@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.2.2, 2018-02-09
+* Abort the build flow if the deployment failed
+
 ## Version 0.2.1, 2018-01-09
 * Fix AKS deployment after AKS resource API change ([#10](https://github.com/jenkinsci/azure-acs-plugin/issues/10))
 
