@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.2.3, 2018-04-03
+* Support for credentials lookup in [Folders](https://plugins.jenkins.io/cloudbees-folder)
+
 ## Version 0.2.2, 2018-02-09
 * Abort the build flow if the deployment failed
 
