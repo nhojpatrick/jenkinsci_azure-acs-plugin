@@ -6,12 +6,18 @@
 
 package com.microsoft.jenkins.acs.util;
 
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.network.Protocol;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.DCOS;
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.KUBERNETES;
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.SWARM;
 
 public final class Constants {
     public static final String PLUGIN_NAME = "AzureJenkinsACS";
@@ -68,16 +74,18 @@ public final class Constants {
 
     public static final String MARATHON_DOCKER_CFG_ARCHIVE_URI = "MARATHON_DOCKER_CFG_ARCHIVE_URI";
 
+    public static final Protocol UDP = Protocol.fromString("Udp");
+
     public static final Set<ContainerServiceOrchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
-            ContainerServiceOrchestratorTypes.KUBERNETES,
-            ContainerServiceOrchestratorTypes.DCOS,
-            ContainerServiceOrchestratorTypes.SWARM
+            KUBERNETES,
+            DCOS,
+            SWARM
     ));
 
     public static final Set<String> SUPPORTED_ORCHESTRATOR_NAMES = new HashSet<>(Arrays.asList(
-            ContainerServiceOrchestratorTypes.KUBERNETES.toString(),
-            ContainerServiceOrchestratorTypes.DCOS.toString(),
-            ContainerServiceOrchestratorTypes.SWARM.toString()
+            KUBERNETES.toString(),
+            DCOS.toString(),
+            SWARM.toString()
     ));
 
     public static final String AKS = "AKS";
@@ -108,16 +116,14 @@ public final class Constants {
     public static final String AI_RESOURCE_NAME = "ResourceName";
 
     public static int sshPort(ContainerServiceOrchestratorTypes type) {
-        switch (type) {
-            case DCOS:
-                return DCOS_SSH_PORT;
-            case KUBERNETES:
-                return KUBERNETES_SSH_PORT;
-            case SWARM:
-                return SWARM_SSH_PORT;
-            default:
-                return -1;
+        if (DCOS.equals(type)) {
+            return DCOS_SSH_PORT;
+        } else if (KUBERNETES.equals(type)) {
+            return KUBERNETES_SSH_PORT;
+        } else if (SWARM.equals(type)) {
+            return SWARM_SSH_PORT;
         }
+        return -1;
     }
 
     private Constants() {

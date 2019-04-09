@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.azure.management.network.Protocol;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.acs.util.Constants;
 import hudson.FilePath;
 
 import java.io.IOException;
@@ -74,7 +75,7 @@ public class MarathonDeploymentConfig extends DeploymentConfig {
                     Protocol protocol = Protocol.TCP;
                     JsonNode protocolNode = element.get("protocol");
                     if (protocolNode != null && protocolNode.asText().equalsIgnoreCase("udp")) {
-                        protocol = Protocol.UDP;
+                        protocol = Constants.UDP;
                     }
 
                     servicePorts.add(new ServicePort(hostPort, containerPort, protocol));

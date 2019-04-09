@@ -7,7 +7,7 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
 import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;
@@ -131,9 +131,10 @@ public abstract class KubernetesDeploymentCommandBase<
     }
 
     static class KubernetesDeployWorker extends MasterToSlaveCallable<TaskResult, Exception> {
+        private static final long serialVersionUID = -1307651925021528450L;
         private TaskListener taskListener;
         private DeploymentConfig.Factory configFactory;
-        private ContainerServiceOrchestratorTypes orchestratorType;
+        private transient ContainerServiceOrchestratorTypes orchestratorType;
         private FilePath workspace;
         private EnvVars envVars;
         private String managementFqdn;

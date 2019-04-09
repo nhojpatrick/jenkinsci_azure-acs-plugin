@@ -1,6 +1,6 @@
 package com.microsoft.jenkins.acs.orchestrators;
 
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
 import com.microsoft.jenkins.acs.Messages;
 import hudson.EnvVars;
 import hudson.FilePath;
@@ -8,6 +8,10 @@ import hudson.FilePath;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
+
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.DCOS;
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.KUBERNETES;
+import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.SWARM;
 
 public abstract class DeploymentConfig implements Serializable {
 
@@ -56,16 +60,15 @@ public abstract class DeploymentConfig implements Serializable {
                 throw new IllegalArgumentException(Messages.ACSDeploymentContext_noConfigFilesFound(configFilePaths));
             }
 
-            switch (type) {
-                case DCOS:
-                    return new MarathonDeploymentConfig(configFiles);
-                case KUBERNETES:
-                    return new KubernetesDeploymentConfig(configFiles);
-                case SWARM:
-                    return new SwarmDeploymentConfig(configFiles);
-                default:
-                    throw new IllegalArgumentException(
-                            Messages.ACSDeploymentContext_orchestratorNotSupported(type));
+            if (DCOS.equals(type)) {
+                return new MarathonDeploymentConfig(configFiles);
+            } else if (KUBERNETES.equals(type)) {
+                return new KubernetesDeploymentConfig(configFiles);
+            } else if (SWARM.equals(type)) {
+                return new SwarmDeploymentConfig(configFiles);
+            } else {
+                throw new IllegalArgumentException(
+                        Messages.ACSDeploymentContext_orchestratorNotSupported(type));
             }
         }
 

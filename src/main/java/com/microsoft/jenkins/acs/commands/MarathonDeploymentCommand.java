@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.jcraft.jsch.JSchException;
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
 import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.orchestrators.DeploymentConfig;

@@ -6,7 +6,7 @@
 
 package com.microsoft.jenkins.acs.orchestrators;
 
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
 import hudson.EnvVars;
 import hudson.FilePath;
 import org.junit.Test;
