@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 0.2.4, 2019-04-09
+* Fix exception in generic resource interface
+
 ## Version 0.2.3, 2018-04-03
 * Support for credentials lookup in [Folders](https://plugins.jenkins.io/cloudbees-folder)
 
