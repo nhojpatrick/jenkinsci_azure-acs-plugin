@@ -7,9 +7,9 @@
 package com.microsoft.jenkins.acs.commands;
 
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.compute.ContainerService;
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
-import com.microsoft.azure.management.compute.ContainerServices;
+import com.microsoft.azure.management.containerservice.ContainerService;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerServices;
 import com.microsoft.jenkins.azurecommons.command.CommandState;
 import org.junit.Before;
 import org.junit.Test;

@@ -309,7 +309,7 @@ public class EnablePortCommandTest {
 
         Assert.assertEquals(2, update.rules.size());
 
-        Assert.assertEquals("JLBRuleTCP8081", update.rules.get(0).name);
+        Assert.assertEquals("JLBRuleTcp8081", update.rules.get(0).name);
         Assert.assertEquals(TransportProtocol.TCP, update.rules.get(0).protocol);
         Assert.assertEquals("frontend", update.rules.get(0).frontend);
         Assert.assertEquals(8081, update.rules.get(0).frontendPort);
@@ -319,7 +319,7 @@ public class EnablePortCommandTest {
                 update.rules.get(0).idleTimeoutInMinutes);
         Assert.assertEquals(LoadDistribution.DEFAULT, update.rules.get(0).loadDistribution);
 
-        Assert.assertEquals("JLBRuleTCP8082", update.rules.get(1).name);
+        Assert.assertEquals("JLBRuleTcp8082", update.rules.get(1).name);
         Assert.assertEquals(TransportProtocol.TCP, update.rules.get(1).protocol);
         Assert.assertEquals("frontend", update.rules.get(1).frontend);
         Assert.assertEquals(8082, update.rules.get(1).frontendPort);

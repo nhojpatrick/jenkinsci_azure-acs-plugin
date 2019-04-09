@@ -2,6 +2,7 @@ package com.microsoft.jenkins.acs.orchestrators;
 
 import com.microsoft.azure.management.network.Protocol;
 import com.microsoft.jenkins.acs.Messages;
+import com.microsoft.jenkins.acs.util.Constants;
 import hudson.FilePath;
 import hudson.Util;
 import org.yaml.snakeyaml.Yaml;
@@ -138,7 +139,7 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
 
         Protocol protocol = Protocol.TCP;
         if (protocolText.equalsIgnoreCase("/udp")) {
-            protocol = Protocol.UDP;
+            protocol = Constants.UDP;
         }
 
         if (extEnd - ext != interEnd - inter) {
@@ -177,7 +178,7 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
         if (protocolNode != null && protocolNode instanceof String) {
             final String protocolText = (String) protocolNode;
             if (protocolText.equalsIgnoreCase("udp")) {
-                protocol = Protocol.UDP;
+                protocol = Constants.UDP;
             }
         }
 

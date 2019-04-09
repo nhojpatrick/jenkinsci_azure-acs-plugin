@@ -1,6 +1,7 @@
 package com.microsoft.jenkins.acs.orchestrators;
 
 import com.microsoft.azure.management.network.Protocol;
+import com.microsoft.jenkins.acs.util.Constants;
 import hudson.FilePath;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -75,7 +76,7 @@ public class MarathonDeploymentConfigTest {
         };
         final List<ServicePort> expServicePorts = Arrays.asList(
                 new ServicePort(8080, 80, Protocol.TCP),
-                new ServicePort(8081, 8081, Protocol.UDP),
+                new ServicePort(8081, 8081, Constants.UDP),
                 new ServicePort(9090, 9090, Protocol.TCP)
         );
         assertServicePorts(contents, expServicePorts);

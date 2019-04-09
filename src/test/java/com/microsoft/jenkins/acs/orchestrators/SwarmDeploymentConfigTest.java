@@ -2,6 +2,7 @@ package com.microsoft.jenkins.acs.orchestrators;
 
 
 import com.microsoft.azure.management.network.Protocol;
+import com.microsoft.jenkins.acs.util.Constants;
 import hudson.FilePath;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -56,8 +57,8 @@ public class SwarmDeploymentConfigTest {
             new ServicePort(8086, 8086, Protocol.TCP),
             new ServicePort(8087, 18087, Protocol.TCP),
             new ServicePort(8088, 18088, Protocol.TCP),
-            new ServicePort(8089, 8089, Protocol.UDP),
-            new ServicePort(8090, 8090, Protocol.UDP)
+            new ServicePort(8089, 8089, Constants.UDP),
+            new ServicePort(8090, 8090, Constants.UDP)
         );
         assertServicePorts(config, expServicePorts);
     }
@@ -83,7 +84,7 @@ public class SwarmDeploymentConfigTest {
         final List<ServicePort> expServicePorts = Arrays.asList(
                 new ServicePort(9090, 80, Protocol.TCP),
                 new ServicePort(8080, 8080, Protocol.TCP),
-                new ServicePort(18081, 8081, Protocol.UDP)
+                new ServicePort(18081, 8081, Constants.UDP)
         );
         assertServicePorts(config, expServicePorts);
     }

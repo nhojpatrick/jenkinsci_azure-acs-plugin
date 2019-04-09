@@ -3,6 +3,7 @@ package com.microsoft.jenkins.acs.orchestrators;
 import com.microsoft.azure.management.network.LoadBalancingRule;
 import com.microsoft.azure.management.network.Protocol;
 import com.microsoft.azure.management.network.TransportProtocol;
+import com.microsoft.jenkins.acs.util.Constants;
 
 public class ServicePort {
 
@@ -31,10 +32,10 @@ public class ServicePort {
     public TransportProtocol getTransportProtocol() {
         if (protocol.equals(Protocol.TCP)) {
             return TransportProtocol.TCP;
-        } else if (protocol.equals(Protocol.UDP)) {
+        } else if (protocol.equals(Constants.UDP)) {
             return TransportProtocol.UDP;
         } else {
-            return new TransportProtocol(protocol.toString());
+            return TransportProtocol.fromString(protocol.toString());
         }
     }
 

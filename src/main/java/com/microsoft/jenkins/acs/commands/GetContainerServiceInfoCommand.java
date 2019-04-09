@@ -8,8 +8,8 @@ package com.microsoft.jenkins.acs.commands;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.compute.ContainerService;
-import com.microsoft.azure.management.compute.ContainerServiceOrchestratorTypes;
+import com.microsoft.azure.management.containerservice.ContainerService;
+import com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes;
 import com.microsoft.jenkins.acs.AzureACSPlugin;
 import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.acs.util.AzureHelper;
@@ -139,7 +139,7 @@ public class GetContainerServiceInfoCommand
         private static final long serialVersionUID = 1L;
 
         private CommandState commandState = CommandState.Unknown;
-        private ContainerServiceOrchestratorTypes orchestratorType;
+        private transient ContainerServiceOrchestratorTypes orchestratorType;
         private String fqdn;
         private String adminUsername;
 
