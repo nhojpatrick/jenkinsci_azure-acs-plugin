@@ -1,5 +1,9 @@
 # Azure Container Service Plugin Changelog
 
+## Version 1.0.0, 2019-08-14
+* Bump Jenkins version to 2.60.3
+* Upgrade Kubernetes cd plugin to 2.0.1
+
 ## Version 0.2.4, 2019-04-09
 * Fix exception in generic resource interface
 
