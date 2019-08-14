@@ -7,6 +7,7 @@ import hudson.FilePath;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.microsoft.azure.management.containerservice.ContainerServiceOrchestratorTypes.DCOS;
@@ -15,14 +16,14 @@ import static com.microsoft.azure.management.containerservice.ContainerServiceOr
 
 public abstract class DeploymentConfig implements Serializable {
 
-    private final FilePath[] configFiles;
+    private FilePath[] configFiles;
 
     public DeploymentConfig(FilePath[] configFiles) {
-        this.configFiles = configFiles;
+        this.configFiles = Arrays.stream(configFiles).toArray(FilePath[]::new);
     }
 
     public FilePath[] getConfigFiles() {
-        return configFiles;
+        return Arrays.stream(configFiles).toArray(FilePath[]::new);
     }
 
     public abstract String getResourcePrefix();

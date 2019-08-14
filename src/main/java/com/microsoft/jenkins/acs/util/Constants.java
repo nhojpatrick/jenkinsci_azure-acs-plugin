@@ -11,6 +11,7 @@ import com.microsoft.azure.management.containerservice.ContainerServiceOrchestra
 import com.microsoft.azure.management.network.Protocol;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -76,17 +77,19 @@ public final class Constants {
 
     public static final Protocol UDP = Protocol.fromString("Udp");
 
-    public static final Set<ContainerServiceOrchestratorTypes> SUPPORTED_ORCHESTRATOR = new HashSet<>(Arrays.asList(
+    public static final Set<ContainerServiceOrchestratorTypes> SUPPORTED_ORCHESTRATOR =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             KUBERNETES,
             DCOS,
             SWARM
-    ));
+    )));
 
-    public static final Set<String> SUPPORTED_ORCHESTRATOR_NAMES = new HashSet<>(Arrays.asList(
+    public static final Set<String> SUPPORTED_ORCHESTRATOR_NAMES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             KUBERNETES.toString(),
             DCOS.toString(),
             SWARM.toString()
-    ));
+    )));
 
     public static final String AKS = "AKS";
     public static final String AKS_PROVIDER = "Microsoft.ContainerService";

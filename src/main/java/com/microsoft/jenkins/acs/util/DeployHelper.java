@@ -1,7 +1,7 @@
 package com.microsoft.jenkins.acs.util;
 
+import com.microsoft.jenkins.acs.Messages;
 import com.microsoft.jenkins.azurecommons.Constants;
-import com.microsoft.jenkins.azurecommons.core.Messages;
 import hudson.EnvVars;
 import hudson.Util;
 import hudson.util.VariableResolver;

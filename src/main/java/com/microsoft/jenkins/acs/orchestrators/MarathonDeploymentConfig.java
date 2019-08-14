@@ -33,11 +33,14 @@ public class MarathonDeploymentConfig extends DeploymentConfig {
             try (InputStream cfgFile = configFile.read()) {
                 final ObjectMapper mapper = new ObjectMapper();
 
-                JsonNode node = null;
+                JsonNode node;
                 try {
                     node = mapper.readTree(cfgFile);
                 } catch (JsonProcessingException e) {
                     throw new InvalidFormatException(e);
+                }
+                if (node == null) {
+                    throw new InvalidFormatException("no content");
                 }
 
                 // Walk down the tree to find the `container.docker.portMappings` node
