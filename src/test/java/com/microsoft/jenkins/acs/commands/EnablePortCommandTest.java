@@ -28,6 +28,7 @@ import com.microsoft.azure.management.network.TransportProtocol;
 import com.microsoft.azure.management.network.model.HasNetworkInterfaces;
 import com.microsoft.azure.management.resources.fluentcore.model.Creatable;
 import com.microsoft.jenkins.acs.orchestrators.ServicePort;
+import com.microsoft.jenkins.acs.commands.EnablePortCommand.InvalidConfigException;
 import com.microsoft.rest.RestException;
 import com.microsoft.rest.ServiceCallback;
 import com.microsoft.rest.ServiceFuture;

@@ -6,11 +6,9 @@
 
 package com.microsoft.jenkins.acs.commands;
 
-import com.microsoft.jenkins.kubernetes.KubernetesClientWrapper;
-import io.fabric8.kubernetes.client.KubernetesClient;
+import com.microsoft.jenkins.kubernetes.wrapper.KubernetesClientWrapper;
+import io.kubernetes.client.ApiClient;
 import org.junit.Test;
-
-import java.net.URL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -31,15 +29,12 @@ public class KubernetesDeploymentCommandTest {
         KubernetesClientWrapper wrapper = mock(KubernetesClientWrapper.class);
         assertEquals("Unknown", worker.getMasterHost(wrapper));
 
-        KubernetesClient client = mock(KubernetesClient.class);
+        ApiClient client = mock(ApiClient.class);
         when(wrapper.getClient()).thenReturn(client);
-        assertEquals("Unknown", worker.getMasterHost(wrapper));
-
-        URL url = mock(URL.class);
-        when(client.getMasterUrl()).thenReturn(url);
         assertNull(worker.getMasterHost(wrapper));
 
-        when(url.getHost()).thenReturn("example.com");
+        when(client.getBasePath()).thenReturn("example.com");
+
         assertEquals("example.com", worker.getMasterHost(wrapper));
     }
 }
