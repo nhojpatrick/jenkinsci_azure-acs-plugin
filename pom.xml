@@ -19,7 +19,7 @@
 
         <azuresdk.version>1.20.1</azuresdk.version>
         <azure-credentials-plugin.version>1.6.1</azure-credentials-plugin.version>
-        <kubernetes-cd.version>0.2.3</kubernetes-cd.version>
+        <kubernetes-cd.version>2.0.1</kubernetes-cd.version>
         <azure-commons.version>1.0.3</azure-commons.version>
         <jackson.version>2.9.9</jackson.version>
     </properties>
@@ -154,6 +154,11 @@
                 <artifactId>plexus-classworlds</artifactId>
                 <version>2.4.2</version>
             </dependency>
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>1.14.1</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -211,12 +216,6 @@
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>kubernetes-cd</artifactId>
             <version>${kubernetes-cd.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.sundr</groupId>
-                    <artifactId>sundr-codegen</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>

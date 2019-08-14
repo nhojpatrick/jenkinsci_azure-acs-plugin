@@ -19,15 +19,15 @@ import com.microsoft.jenkins.azurecommons.command.IBaseCommandData;
 import com.microsoft.jenkins.azurecommons.command.ICommand;
 import com.microsoft.jenkins.azurecommons.remote.SSHClient;
 import com.microsoft.jenkins.azurecommons.telemetry.AppInsightsUtils;
-import com.microsoft.jenkins.kubernetes.KubernetesClientWrapper;
 import com.microsoft.jenkins.kubernetes.credentials.ResolvedDockerRegistryEndpoint;
+import com.microsoft.jenkins.kubernetes.wrapper.KubernetesClientWrapper;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Util;
 import hudson.model.Item;
 import hudson.model.TaskListener;
 import hudson.util.VariableResolver;
-import io.fabric8.kubernetes.client.KubernetesClient;
+import io.kubernetes.client.ApiClient;
 import jenkins.security.MasterToSlaveCallable;
 import org.apache.commons.lang.StringUtils;
 
@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.Serializable;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -220,15 +219,11 @@ public abstract class KubernetesDeploymentCommandBase<
             if (wrapper == null) {
                 return unknown;
             }
-            KubernetesClient client = wrapper.getClient();
+            ApiClient client = wrapper.getClient();
             if (client == null) {
                 return unknown;
             }
-            URL masterURL = client.getMasterUrl();
-            if (masterURL == null) {
-                return unknown;
-            }
-            return masterURL.getHost();
+            return client.getBasePath();
         }
 
         public TaskListener getTaskListener() {
