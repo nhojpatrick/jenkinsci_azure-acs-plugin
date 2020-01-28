@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 1.0.1, 2020-01-28
+* Upgrade Kubernetes cd plugin to 2.3.0
+
 ## Version 1.0.0, 2019-08-14
 * Bump Jenkins version to 2.60.3
 * Upgrade Kubernetes cd plugin to 2.0.1
