@@ -6,6 +6,7 @@ import com.microsoft.jenkins.acs.util.Constants;
 import hudson.FilePath;
 import hudson.Util;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +35,7 @@ public class SwarmDeploymentConfig extends DeploymentConfig {
         final FilePath[] configFiles = getConfigFiles();
         for (FilePath configFile : configFiles) {
             try (InputStream cfgFile = configFile.read()) {
-                Yaml yaml = new Yaml();
+                Yaml yaml = new Yaml(new SafeConstructor());
                 Map<String, Object> root = (Map<String, Object>) yaml.load(cfgFile);
 
                 // For files that do not declare a version are considered the legacy version
