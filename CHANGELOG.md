@@ -1,5 +1,9 @@
 # Azure Container Service Plugin Changelog
 
+## Version 1.0.2, 2020-03-25
+* Upgrade snakeyaml to 1.26.0
+* Fix yaml potential remote execution issue
+
 ## Version 1.0.1, 2020-01-28
 * Upgrade Kubernetes cd plugin to 2.3.0
 
