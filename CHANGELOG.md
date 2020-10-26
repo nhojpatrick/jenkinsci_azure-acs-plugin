@@ -1,5 +1,9 @@
 # Azure Container Service Plugin Changelog
 
+## Version 1.0.3, 2020-10-26
+* Update maintainer
+* Bump guava form 20.0 to 24.1.1-jre
+
 ## Version 1.0.2, 2020-03-25
 * Upgrade snakeyaml to 1.26.0
 * Fix yaml potential remote execution issue
