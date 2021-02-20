@@ -21,7 +21,7 @@
         <azure-credentials-plugin.version>1.6.1</azure-credentials-plugin.version>
         <kubernetes-cd.version>2.3.0</kubernetes-cd.version>
         <azure-commons.version>1.0.4</azure-commons.version>
-        <jackson.version>2.10.1</jackson.version>
+        <jackson.version>2.10.5</jackson.version>
     </properties>
 
     <name>Azure Container Service Plugin</name>
@@ -236,7 +236,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
+            <version>2.10.5.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
