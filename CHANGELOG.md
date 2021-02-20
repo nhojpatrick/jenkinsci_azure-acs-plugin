@@ -1,5 +1,8 @@
 # Azure Container Service Plugin Changelog
 
+## Version 1.0.4, 2021-02-20
+* Update document
+
 ## Version 1.0.3, 2020-10-26
 * Update maintainer
 * Bump guava form 20.0 to 24.1.1-jre
