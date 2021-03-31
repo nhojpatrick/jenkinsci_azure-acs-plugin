@@ -28,7 +28,7 @@
     <description>
         Deploy Kubernetes, DC/OS, Docker Swarm application configurations to Azure Container Service cluster.
     </description>
-    <url>https://wiki.jenkins-ci.org/display/JENKINS/Azure+Container+Service+Plugin</url>
+    <url>https://github.com/jenkinsci/azure-acs-plugin</url>
 
     <licenses>
         <license>
